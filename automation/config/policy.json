@@ -1,0 +1,39 @@
+{
+  "allowed_command_prefixes": [
+    [".venv/bin/python", "-m", "pytest"],
+    ["git", "diff"],
+    ["git", "status"]
+  ],
+  "global_forbidden_paths": [
+    "data/**",
+    "automation/artifacts/**",
+    ".git/**",
+    ".venv/**",
+    "certs/**",
+    ".env"
+  ],
+  "risk_levels": {
+    "low": {
+      "allow_patch": true,
+      "allow_checks": true,
+      "allow_repair": true,
+      "requires_approval": false
+    },
+    "medium": {
+      "allow_patch": false,
+      "allow_checks": false,
+      "allow_repair": false,
+      "requires_approval": true
+    },
+    "high": {
+      "allow_patch": false,
+      "allow_checks": false,
+      "allow_repair": false,
+      "requires_approval": true
+    }
+  },
+  "max_patch_bytes": 80000,
+  "max_changed_files": 8,
+  "default_max_repair_attempts": 3,
+  "command_timeout_seconds": 300
+}

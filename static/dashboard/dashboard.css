@@ -1,0 +1,91 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: #15202b;
+  background: #f4f7f9;
+  font-family: Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.dashboard-shell {
+  min-height: 100vh;
+  padding: 32px;
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+#serviceState {
+  margin-bottom: 0;
+  color: #315f72;
+  font-weight: 700;
+}
+
+button,
+input {
+  min-height: 40px;
+  border: 1px solid #b7c6cc;
+  border-radius: 6px;
+  font: inherit;
+}
+
+button {
+  padding: 0 16px;
+  color: #ffffff;
+  background: #23576b;
+  cursor: pointer;
+}
+
+input {
+  width: 100%;
+  padding: 0 12px;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.status-panel {
+  padding: 16px;
+  border: 1px solid #d3dee3;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.status-panel label {
+  display: block;
+  margin-bottom: 8px;
+  color: #53636b;
+}
+
+#roomSummary,
+#csvState {
+  margin: 16px 0 0;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .dashboard-shell {
+    padding: 20px;
+  }
+
+  .dashboard-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RTCTraining</title>
+    <link rel="stylesheet" href="/static/webrtc/chat_real.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="topbar">
+        <div>
+          <h1>RTCTraining</h1>
+          <p id="connectionState">idle</p>
+        </div>
+        <div class="room-controls">
+          <input id="roomIdInput" value="room1" aria-label="Room ID">
+          <input id="displayNameInput" value="Learner" aria-label="Display name">
+          <button id="startMediaButton" type="button">Start Media</button>
+          <button id="joinRoomButton" type="button">Join</button>
+          <button id="leaveRoomButton" type="button">Leave</button>
+        </div>
+      </section>
+      <section class="video-grid">
+        <article>
+          <h2>Local</h2>
+          <video id="localVideo" autoplay muted playsinline></video>
+        </article>
+        <article>
+          <h2>Remote</h2>
+          <div id="remoteVideos"></div>
+        </article>
+      </section>
+      <section class="timeline-panel">
+        <h2>Timeline</h2>
+        <ol id="timeline"></ol>
+      </section>
+    </main>
+    <script src="/static/webrtc/chat_real_shared.js"></script>
+    <script src="/static/webrtc/chat_real_session.js"></script>
+    <script src="/static/webrtc/chat_real_stats.js"></script>
+    <script src="/static/webrtc/chat_real_bootstrap.js"></script>
+    <script>
+      window.__RTCTrainingTestHooks = window.__RTCTrainingTestHooks || {};
+    </script>
+  </body>
+</html>

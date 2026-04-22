@@ -1,0 +1,14 @@
+{
+  "mode": "continuous",
+  "poll_interval_seconds": 30,
+  "max_tasks_per_run": 1,
+  "model_backend": "stub",
+  "approval_required_for": [
+    "medium risk tasks",
+    "high risk tasks",
+    "commands outside allowed_command_prefixes",
+    "paths matching global_forbidden_paths",
+    "patches over max_patch_bytes",
+    "patches changing more than max_changed_files"
+  ]
+}

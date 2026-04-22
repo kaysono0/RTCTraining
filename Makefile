@@ -1,0 +1,30 @@
+.PHONY: cert run-webrtc run-dashboard test test-unit test-e2e urls automation-run-once automation-run-continuous
+
+PYTHON ?= .venv/bin/python
+
+cert:
+	$(PYTHON) scripts/generate_cert.py
+
+run-webrtc:
+	$(PYTHON) -m src.webrtc.chat_server run
+
+run-dashboard:
+	$(PYTHON) -m src.dashboard.server run
+
+test:
+	$(PYTHON) -m pytest tests -v
+
+test-unit:
+	$(PYTHON) -m pytest tests/test_config.py tests/test_room_store.py tests/test_mesh_handlers.py tests/test_stats_store.py tests/test_stats_handlers.py tests/test_ui_routes.py tests/test_cli.py tests/test_automation_runner.py -v
+
+test-e2e:
+	$(PYTHON) -m pytest tests/test_playwright_e2e.py -v
+
+urls:
+	$(PYTHON) scripts/print_lan_urls.py
+
+automation-run-once:
+	$(PYTHON) -m automation.runner.orchestrator run-once
+
+automation-run-continuous:
+	$(PYTHON) -m automation.runner.orchestrator run-continuous --max-tasks 1

@@ -1,0 +1,270 @@
+import contextlib
+import json
+import socket
+import ssl
+import subprocess
+import sys
+import time
+from pathlib import Path
+from urllib.parse import urlencode
+from urllib.error import URLError
+from urllib.request import urlopen
+
+import pytest
+from playwright.sync_api import expect, sync_playwright
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def free_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+
+def wait_for_url(url, *, ignore_tls=False, timeout=10):
+    deadline = time.monotonic() + timeout
+    context = ssl._create_unverified_context() if ignore_tls else None
+    last_error = None
+    while time.monotonic() < deadline:
+        try:
+            with urlopen(url, context=context, timeout=1) as response:
+                if response.status < 500:
+                    return
+        except (OSError, URLError) as exc:
+            last_error = exc
+        time.sleep(0.1)
+    raise AssertionError(f"Timed out waiting for {url}: {last_error}")
+
+
+@contextlib.contextmanager
+def managed_process(command):
+    process = subprocess.Popen(
+        command,
+        cwd=PROJECT_ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    try:
+        yield process
+    finally:
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+
+
+@pytest.fixture
+def webrtc_https_server():
+    port = free_port()
+    command = [
+        sys.executable,
+        "-m",
+        "src.webrtc.chat_server",
+        "run",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(port),
+        "--cert",
+        "certs/cert.pem",
+        "--key",
+        "certs/key.pem",
+    ]
+    with managed_process(command) as process:
+        base_url = f"https://127.0.0.1:{port}"
+        wait_for_url(f"{base_url}/", ignore_tls=True)
+        if process.poll() is not None:
+            raise AssertionError(process.stdout.read())
+        yield base_url
+
+
+@pytest.fixture
+def dashboard_server():
+    port = free_port()
+    command = [
+        sys.executable,
+        "-m",
+        "src.dashboard.server",
+        "run",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(port),
+    ]
+    with managed_process(command) as process:
+        base_url = f"http://127.0.0.1:{port}"
+        wait_for_url(f"{base_url}/")
+        if process.poll() is not None:
+            raise AssertionError(process.stdout.read())
+        yield base_url
+
+
+@pytest.fixture
+def browser_context():
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(
+            headless=True,
+            args=[
+                "--use-fake-device-for-media-stream",
+                "--use-fake-ui-for-media-stream",
+            ],
+        )
+        context = browser.new_context(ignore_https_errors=True)
+        yield context
+        context.close()
+        browser.close()
+
+
+def test_webrtc_page_can_start_media_join_and_leave_room(browser_context, webrtc_https_server):
+    page = browser_context.new_page()
+
+    page.goto(webrtc_https_server)
+    expect(page.locator("h1")).to_have_text("RTCTraining")
+    expect(page.locator("#connectionState")).to_have_text("idle")
+
+    page.get_by_role("button", name="Start Media").click()
+    expect(page.locator("#connectionState")).to_have_text("media_ready")
+
+    page.fill("#roomIdInput", "e2e-room")
+    page.fill("#displayNameInput", "E2E Learner")
+    page.get_by_role("button", name="Join").click()
+    expect(page.locator("#connectionState")).to_have_text("joined")
+
+    state = page.evaluate("window.__RTCTrainingTestHooks.getState()")
+    room_id = page.evaluate("window.__RTCTrainingTestHooks.getRoomId()")
+    timeline_types = page.evaluate(
+        "window.__RTCTrainingTestHooks.getTimeline().map((event) => event.type)"
+    )
+    assert state == "joined"
+    assert room_id == "e2e-room"
+    assert timeline_types == ["local_media_ready", "joined_room"]
+
+    page.get_by_role("button", name="Leave").click()
+    expect(page.locator("#connectionState")).to_have_text("left")
+
+
+def test_dashboard_checks_webrtc_service_from_independent_port(
+    browser_context,
+    dashboard_server,
+    webrtc_https_server,
+):
+    page = browser_context.new_page()
+
+    page.goto(f"{dashboard_server}/?webrtc_origin={webrtc_https_server}")
+    expect(page.locator("h1")).to_have_text("RTCTraining Dashboard")
+    expect(page.locator("#serviceState")).to_have_text("service_online")
+
+    page.get_by_role("button", name="检查服务").click()
+
+    expect(page.locator("#serviceState")).to_have_text("service_online")
+    expect(page.locator("#roomSummary")).to_contain_text("0 rooms")
+
+
+def test_dashboard_auto_checks_webrtc_service_on_load(
+    browser_context,
+    dashboard_server,
+    webrtc_https_server,
+):
+    page = browser_context.new_page()
+
+    page.goto(f"{dashboard_server}/?webrtc_origin={webrtc_https_server}")
+
+    expect(page.locator("#serviceState")).to_have_text("service_online")
+    expect(page.locator("#roomSummary")).to_contain_text("0 rooms")
+
+
+def test_two_webrtc_pages_connect_and_render_remote_video(
+    browser_context,
+    webrtc_https_server,
+):
+    alice = browser_context.new_page()
+    bob = browser_context.new_page()
+
+    alice.goto(webrtc_https_server)
+    bob.goto(webrtc_https_server)
+
+    for page, display_name in ((alice, "Alice"), (bob, "Bob")):
+        page.get_by_role("button", name="Start Media").click()
+        expect(page.locator("#connectionState")).to_have_text("media_ready")
+        page.fill("#roomIdInput", "p2p-room")
+        page.fill("#displayNameInput", display_name)
+
+    alice.get_by_role("button", name="Join").click()
+    expect(alice.locator("#connectionState")).to_have_text("joined")
+
+    bob.get_by_role("button", name="Join").click()
+
+    for page in (alice, bob):
+        expect(page.locator("#connectionState")).to_have_text("connected", timeout=10000)
+        expect(page.locator("#remoteVideos video")).to_have_count(1, timeout=10000)
+        page.wait_for_function(
+            "window.__RTCTrainingTestHooks.getConnectedPeerCount() === 1",
+            timeout=10000,
+        )
+
+    alice_timeline = alice.evaluate(
+        "window.__RTCTrainingTestHooks.getTimeline().map((event) => event.type)"
+    )
+    bob_timeline = bob.evaluate(
+        "window.__RTCTrainingTestHooks.getTimeline().map((event) => event.type)"
+    )
+    assert "received_offer" in alice_timeline
+    assert "sent_answer" in alice_timeline
+    assert "sent_offer" in bob_timeline
+    assert "received_answer" in bob_timeline
+
+
+def test_connected_webrtc_pages_upload_stats_visible_to_dashboard(
+    browser_context,
+    dashboard_server,
+    webrtc_https_server,
+):
+    room_id = "stats-room"
+    alice = browser_context.new_page()
+    bob = browser_context.new_page()
+
+    alice.goto(webrtc_https_server)
+    bob.goto(webrtc_https_server)
+
+    for page, display_name in ((alice, "Alice"), (bob, "Bob")):
+        page.get_by_role("button", name="Start Media").click()
+        expect(page.locator("#connectionState")).to_have_text("media_ready")
+        page.fill("#roomIdInput", room_id)
+        page.fill("#displayNameInput", display_name)
+
+    alice.get_by_role("button", name="Join").click()
+    bob.get_by_role("button", name="Join").click()
+
+    for page in (alice, bob):
+        expect(page.locator("#connectionState")).to_have_text("connected", timeout=10000)
+
+    alice.wait_for_function(
+        """
+        async (roomId) => {
+          const response = await fetch(`/stats/peers?room_id=${roomId}`);
+          const payload = await response.json();
+          return payload.ok && payload.data.peers.length >= 2;
+        }
+        """,
+        arg=room_id,
+        timeout=10000,
+    )
+
+    dashboard_query = urlencode({"origin": webrtc_https_server, "room_id": room_id})
+    with urlopen(f"{dashboard_server}/api/webrtc/stats/peers?{dashboard_query}", timeout=3) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+
+    assert payload["ok"] is True
+    assert len(payload["data"]["peers"]) >= 2
+    assert {
+        (peer["peer_id"], peer["remote_peer_id"])
+        for peer in payload["data"]["peers"]
+    } == {
+        (alice.evaluate("window.__RTCTrainingTestHooks.getClientId()"), bob.evaluate("window.__RTCTrainingTestHooks.getClientId()")),
+        (bob.evaluate("window.__RTCTrainingTestHooks.getClientId()"), alice.evaluate("window.__RTCTrainingTestHooks.getClientId()")),
+    }
