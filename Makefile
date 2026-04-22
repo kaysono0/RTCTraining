@@ -1,4 +1,4 @@
-.PHONY: cert run-webrtc run-dashboard test test-unit test-e2e urls automation-run-once automation-run-continuous
+.PHONY: cert run-webrtc run-dashboard test test-unit test-e2e urls automation-run-once automation-run-continuous automation-task-help
 
 PYTHON ?= .venv/bin/python
 
@@ -28,3 +28,6 @@ automation-run-once:
 
 automation-run-continuous:
 	$(PYTHON) -m automation.runner.orchestrator run-continuous --max-tasks 1
+
+automation-task-help:
+	$(PYTHON) -m automation.runner.task_cli --help

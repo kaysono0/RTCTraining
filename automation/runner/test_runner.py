@@ -20,8 +20,9 @@ class CheckResult:
 
 
 class TestRunner:
-    def __init__(self, root: Path, policy: Policy, artifacts: ArtifactStore):
+    def __init__(self, root: Path, policy: Policy, artifacts: ArtifactStore, *, command_root: Path | None = None):
         self.root = root
+        self.command_root = command_root or root
         self.policy = policy
         self.artifacts = artifacts
 
@@ -32,8 +33,11 @@ class TestRunner:
             if not self.policy.command_allowed(command):
                 result = subprocess.CompletedProcess(shlex.split(command), 126, "", "command not allowed")
             else:
+                parts = shlex.split(command)
+                if parts and parts[0].startswith(".venv/"):
+                    parts[0] = str(self.command_root / parts[0])
                 result = subprocess.run(
-                    shlex.split(command),
+                    parts,
                     cwd=self.root,
                     check=False,
                     capture_output=True,
@@ -57,7 +61,7 @@ class TestRunner:
                     status=status,
                     exit_code=result.returncode,
                     duration_ms=duration_ms,
-                    log_path=str(log_path.relative_to(self.root)),
+                    log_path=str(log_path.relative_to(self.command_root)),
                 )
             )
         return results

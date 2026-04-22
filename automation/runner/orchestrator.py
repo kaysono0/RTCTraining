@@ -5,13 +5,15 @@ import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from automation.runner.artifact_store import ArtifactStore, utc_now_iso
 from automation.runner.diff_validator import apply_unified_patch, validate_patch
-from automation.runner.model_gateway import StubModelGateway
+from automation.runner.model_gateway import build_model_gateway
 from automation.runner.policies import Policy
 from automation.runner.task_loader import Task, TaskLoader
 from automation.runner.test_runner import CheckResult, TestRunner
+from automation.runner.worktree_manager import WorktreeManager
 
 
 @dataclass(frozen=True)
@@ -79,6 +81,48 @@ def _write_markdown_report(
     artifacts.write_text(f"reports/{task.id}.md", "\n".join(lines))
 
 
+def _workspace_for_task(root: Path, task: Task) -> tuple[Path, str, str | None]:
+    mode = str(task.data.get("mode", "patch-only"))
+    if mode == "patch-only":
+        return root, ".", None
+    if mode == "worktree":
+        worktree = WorktreeManager(root).create(task.id)
+        return worktree.path, worktree.relative_path, worktree.branch
+    raise RuntimeError(f"unsupported task mode: {mode}")
+
+
+def _load_runtime(root: Path) -> dict[str, Any]:
+    path = root / "automation/config/runtime.json"
+    if not path.exists():
+        return {"model_backend": "stub"}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _validate_patch_for_task(patch: str, task: Task, policy: Policy):
+    return validate_patch(
+        patch,
+        allowed_paths=list(task.data["allowed_paths"]),
+        forbidden_paths=policy.forbidden_patterns(task.data),
+        max_patch_bytes=policy.max_patch_bytes,
+        max_changed_files=policy.max_changed_files,
+    )
+
+
+def _run_required_checks(
+    workspace_root: Path,
+    root: Path,
+    policy: Policy,
+    artifacts: ArtifactStore,
+    task_id: str,
+    commands: list[str],
+) -> list[CheckResult]:
+    return TestRunner(workspace_root, policy, artifacts, command_root=root).run_checks(task_id, commands)
+
+
+def _failed_check_payload(checks: list[CheckResult]) -> list[dict[str, Any]]:
+    return [check.__dict__ for check in checks if check.status != "passed"]
+
+
 def run_once(root: str | Path = ".") -> RunResult:
     root = Path(root)
     artifacts = ArtifactStore(root)
@@ -98,33 +142,64 @@ def run_once(root: str | Path = ".") -> RunResult:
 
     task_path = loader.move(task, "running")
     task = Task(path=task_path, data=task.data)
+    try:
+        workspace_root, workspace_path, worktree_branch = _workspace_for_task(root, task)
+    except Exception as exc:
+        return _fail(task, loader, artifacts, str(exc))
 
-    model = StubModelGateway(artifacts)
-    plan = model.plan(task.data)
-    artifacts.write_json(f"plans/{task.id}.json", plan)
-    patch = model.develop(task.data, plan)
+    try:
+        model = build_model_gateway(root, artifacts, _load_runtime(root), policy.command_timeout_seconds)
+        plan = model.plan(task.data)
+        artifacts.write_json(f"plans/{task.id}.json", plan)
+        patch = model.develop(task.data, plan)
+    except Exception as exc:
+        return _fail(task, loader, artifacts, str(exc))
     artifacts.write_text(f"patches/{task.id}.patch", patch)
 
-    validation = validate_patch(
-        patch,
-        allowed_paths=list(task.data["allowed_paths"]),
-        forbidden_paths=policy.forbidden_patterns(task.data),
-        max_patch_bytes=policy.max_patch_bytes,
-        max_changed_files=policy.max_changed_files,
-    )
+    validation = _validate_patch_for_task(patch, task, policy)
     if not validation.ok:
         return _fail(task, loader, artifacts, validation.reason, validation.changed_files)
 
     try:
-        apply_unified_patch(root, patch)
+        apply_unified_patch(workspace_root, patch)
     except Exception as exc:
         return _fail(task, loader, artifacts, str(exc), validation.changed_files)
 
-    checks = TestRunner(root, policy, artifacts).run_checks(task.id, list(task.data["required_checks"]))
+    checks = _run_required_checks(workspace_root, root, policy, artifacts, task.id, list(task.data["required_checks"]))
+    repair_attempts = 0
+    max_repair_attempts = int(task.data.get("max_repair_attempts", policy.data.get("default_max_repair_attempts", 0)))
+    while any(check.status != "passed" for check in checks) and repair_attempts < max_repair_attempts:
+        repair_attempts += 1
+        try:
+            repair_patch = model.repair(task.data, plan, _failed_check_payload(checks), repair_attempts)
+        except Exception as exc:
+            return _fail(task, loader, artifacts, str(exc), validation.changed_files)
+        artifacts.write_text(f"patches/{task.id}.repair-{repair_attempts}.patch", repair_patch)
+        repair_validation = _validate_patch_for_task(repair_patch, task, policy)
+        if not repair_validation.ok:
+            return _fail(task, loader, artifacts, repair_validation.reason, repair_validation.changed_files)
+        try:
+            apply_unified_patch(workspace_root, repair_patch)
+        except Exception as exc:
+            return _fail(task, loader, artifacts, str(exc), repair_validation.changed_files)
+        changed_files = list(dict.fromkeys(validation.changed_files + repair_validation.changed_files))
+        validation = type(validation)(True, changed_files)
+        checks = _run_required_checks(
+            workspace_root,
+            root,
+            policy,
+            artifacts,
+            task.id,
+            list(task.data["required_checks"]),
+        )
     status = "done" if all(check.status == "passed" for check in checks) else "failed"
     report = {
         "task_id": task.id,
         "status": status,
+        "mode": str(task.data.get("mode", "patch-only")),
+        "workspace_path": workspace_path,
+        "worktree_branch": worktree_branch,
+        "repair_attempts": repair_attempts,
         "reason": "" if status == "done" else "required checks failed",
         "changed_files": validation.changed_files,
         "checks": [check.__dict__ for check in checks],

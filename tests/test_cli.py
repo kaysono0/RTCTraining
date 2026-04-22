@@ -45,3 +45,10 @@ def test_automation_runner_help_is_available():
 
     assert result.returncode == 0
     assert "RTCTraining autonomous automation runner" in result.stdout
+
+
+def test_automation_task_cli_help_is_available():
+    result = run_help("automation.runner.task_cli")
+
+    assert result.returncode == 0
+    assert "Create and approve RTCTraining automation tasks" in result.stdout

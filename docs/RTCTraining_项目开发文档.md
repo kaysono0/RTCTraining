@@ -488,8 +488,9 @@ rtc_training/
 - 策略引擎。
 - unified diff。
 - git worktree。
-- stub 模型网关优先。
-- 真实模型后续接入。
+- stub 模型网关。
+- command 模型网关，用外部命令接入真实模型。
+- 有限失败修复循环。
 
 ## 7. 开发路线总览
 
@@ -1205,6 +1206,7 @@ automation/
 ├── prompts/
 ├── runner/
 │   ├── task_loader.py
+│   ├── task_cli.py
 │   ├── policies.py
 │   ├── model_gateway.py
 │   ├── planner.py
@@ -1300,8 +1302,10 @@ automation/
 
 截至 2026-04-22，`automation/` 已落地首版可验证闭环：
 
-- 首版使用 `patch-only` 模式；当前目录尚不是 git 仓库，因此暂不启用 worktree。
-- 首版模型网关是 `stub`，从任务契约的 `stub_patch` 字段读取 unified diff，后续再接真实模型。
+- 当前目录已初始化为 git 仓库，首版支持 `patch-only` 和 `worktree` 两种模式。
+- `worktree` 模式会创建 `.automation/worktrees/<task_id>`，在隔离工作区应用 patch 和运行测试，主工作区只保存任务状态与 artifacts。
+- 模型网关支持 `stub` 和 `command`。`stub` 从任务契约的 `stub_patch` 字段读取 unified diff；`command` 通过 runtime 配置调用外部命令，把真实模型接入统一的 patch 协议。
+- required checks 失败后，runner 会在 `max_repair_attempts` 限制内请求修复 patch，并对修复 patch 重新执行同一套策略校验。
 - 已实现任务状态：`ready`、`running`、`done`、`failed`、`blocked`。
 - 已实现审批 gate：中高风险任务、越权命令、越权路径、过大 patch、修改文件过多都会阻塞。
 - 已实现 CLI：
@@ -1309,6 +1313,8 @@ automation/
 ```bash
 .venv/bin/python -m automation.runner.orchestrator run-once
 .venv/bin/python -m automation.runner.orchestrator run-continuous --max-tasks 3 --poll-interval-seconds 0
+.venv/bin/python -m automation.runner.task_cli create --help
+.venv/bin/python -m automation.runner.task_cli approve <task_id>
 ```
 
 详细说明见：
@@ -1650,7 +1656,8 @@ MVP 不要求：
 5. 实现测试执行。
 6. 实现失败修复循环。
 7. 实现报告和产物。
-8. 接入低风险开发任务。
+8. 实现 command 模型网关。
+9. 接入低风险开发任务。
 
 ## 20. HTTP API 详细协议
 

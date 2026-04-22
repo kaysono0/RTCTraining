@@ -43,7 +43,7 @@ class Policy:
         risk_policy = self.data.get("risk_levels", {}).get(risk)
         if risk_policy is None:
             return PolicyDecision(False, True, f"unknown risk level: {risk}")
-        if risk_policy.get("requires_approval"):
+        if risk_policy.get("requires_approval") and not task.get("approved_by_user"):
             return PolicyDecision(False, True, "risk level requires approval")
         for context_file in task["context_files"]:
             path = self.root / str(context_file)

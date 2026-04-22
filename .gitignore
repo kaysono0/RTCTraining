@@ -17,6 +17,8 @@ env/
 # Local generated runtime data
 certs/
 data/
+automation/artifacts/
+.automation/
 
 # Local editor/OS files
 .idea/

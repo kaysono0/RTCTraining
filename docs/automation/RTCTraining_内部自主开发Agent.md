@@ -24,7 +24,11 @@
 已实现：
 
 - `patch-only` 模式。
+- `worktree` 模式：为任务创建 `.automation/worktrees/<task_id>` 隔离工作区。
 - `stub` 模型网关，通过任务里的 `stub_patch` 字段提供 deterministic patch。
+- `command` 模型网关，通过 `automation/config/runtime.json` 的 `model_command` 调用外部模型命令生成 unified diff。
+- 有限失败修复循环：required checks 失败后，最多按任务的 `max_repair_attempts` 请求修复 patch 并重跑测试。
+- 任务创建 CLI 和审批恢复 CLI。
 - 任务队列：`ready`、`running`、`done`、`failed`、`blocked`。
 - 策略文件：`automation/config/policy.json`。
 - 连续运行入口：`python -m automation.runner.orchestrator run-continuous`。
@@ -39,13 +43,11 @@
 
 尚未实现：
 
-- git worktree 隔离。
-- 真实模型接入。
-- 自动失败修复循环。
 - Web Console。
 - 自动 git commit、push 或 merge。
+- 内置 provider SDK 直连。当前真实模型通过外部命令网关接入。
 
-由于当前 RTCTraining 目录不是 git 仓库，首版不启用 worktree。后续初始化 git 后，再把 `mode=worktree` 接到 `git worktree`。
+当前 RTCTraining 已是 git 仓库，`mode=worktree` 可用。worktree 模式会在隔离工作区应用 patch 和运行测试，主工作区只保存任务状态与 artifacts，不直接承载代码修改。
 
 ## 3. 运行命令
 
@@ -66,9 +68,58 @@ Makefile 入口：
 ```bash
 make automation-run-once
 make automation-run-continuous
+make automation-task-help
 ```
 
-## 4. 任务契约
+创建任务：
+
+```bash
+.venv/bin/python -m automation.runner.task_cli create \
+  --id fix-dashboard-empty-state \
+  --title "修复 Dashboard 空状态" \
+  --goal "Dashboard 没有 stats 数据时仍返回页面并显示空状态。" \
+  --context-files templates/dashboard/index.html,tests/test_ui_routes.py \
+  --allowed-paths templates/dashboard/index.html,tests/test_ui_routes.py \
+  --acceptance "Dashboard 无 stats 数据时返回 HTTP 200。,相关测试通过。" \
+  --required-checks ".venv/bin/python -m pytest tests/test_ui_routes.py -v" \
+  --mode worktree
+```
+
+批准 blocked 任务并放回 ready 队列：
+
+```bash
+.venv/bin/python -m automation.runner.task_cli approve <task_id>
+```
+
+## 4. 模型网关配置
+
+默认 `automation/config/runtime.json` 使用 `stub`：
+
+```json
+{
+  "model_backend": "stub"
+}
+```
+
+要让 agent 调用外部模型命令，把 runtime 改成：
+
+```json
+{
+  "model_backend": "command",
+  "model_command": "your-model-command --emit-unified-diff"
+}
+```
+
+`model_command` 会收到一段 JSON stdin，字段包含：
+
+- `phase`: `develop` 或 `repair`。
+- `task`: 当前任务契约。
+- `plan`: 当前计划。
+- `failed_checks`: 仅 repair 阶段存在，包含失败检查摘要。
+
+命令必须把 unified diff 输出到 stdout。runner 会继续执行路径、大小、文件数和 required checks 校验。模型命令本身如果需要网络或 API key，由运行环境负责提供。
+
+## 5. 任务契约
 
 任务文件放在：
 
@@ -105,15 +156,17 @@ automation/tasks/ready/<task_id>.json
     ".venv/bin/python -m pytest tests/test_ui_routes.py -v"
   ],
   "risk_level": "low",
-  "mode": "patch-only",
+  "mode": "worktree",
   "max_repair_attempts": 1,
   "stub_patch": "--- a/templates/dashboard/index.html\n+++ b/templates/dashboard/index.html\n@@ -1 +1 @@\n-old\n+new\n"
 }
 ```
 
-`stub_patch` 是首版 deterministic 模型网关使用的字段。真实模型接入后，这个字段会被模型生成的 unified diff 替代。
+`mode` 可取 `patch-only` 或 `worktree`。推荐内部自主运行默认使用 `worktree`，只在不需要隔离或测试场景中使用 `patch-only`。
 
-## 5. 审批 Gate
+`stub_patch` 是 deterministic 模型网关使用的字段。`model_backend=command` 时，这个字段不会被使用，patch 由外部模型命令生成。
+
+## 6. 审批 Gate
 
 以下情况不会自动修改代码，会进入 `automation/tasks/blocked/`：
 
@@ -131,7 +184,7 @@ automation/tasks/ready/<task_id>.json
 automation/artifacts/approvals/<task_id>.json
 ```
 
-## 6. 成功标准
+## 7. 成功标准
 
 任务进入 `done` 必须满足：
 
@@ -144,12 +197,14 @@ automation/artifacts/approvals/<task_id>.json
 
 任务失败会进入 `failed`，并在报告中记录原因。
 
-## 7. 与长期目标的差异
+如果 required checks 首次失败，runner 会在不超过 `max_repair_attempts` 的前提下请求修复 patch。每次修复 patch 都必须重新通过同一套策略校验，否则任务进入 `failed`。
 
-项目开发文档中描述的最终形态包含 worktree、真实模型、失败分析、有限修复和 Web Console。当前实现是第一阶段可验证闭环：
+## 8. 与长期目标的差异
+
+项目开发文档中描述的更完整形态还包含 Web Console、自动提交策略和 provider SDK 直连。当前实现是可验证闭环：
 
 ```text
-patch-only + stub model + policy gate + required checks + artifacts
+patch-only/worktree + stub/command model + policy gate + repair loop + required checks + artifacts
 ```
 
 这保证 harness 本身先可靠，再逐步接入更强的模型能力。
