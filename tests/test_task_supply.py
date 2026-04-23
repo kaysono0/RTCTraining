@@ -181,6 +181,7 @@ def test_repo_task_supply_catalog_is_valid():
         "failure-summary-project-docs",
         "approval-changed-files-regression",
         "approval-changed-files-regression-fixed",
+        "approval-changed-files-count-summary",
     ]
     for recipe in catalog["recipes"]:
         assert recipe["mode"] == "worktree"

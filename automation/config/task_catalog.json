@@ -149,6 +149,35 @@
       "mode": "worktree",
       "risk_level": "low",
       "max_instances": 1
+    },
+    {
+      "id": "approval-changed-files-count-summary",
+      "title": "补全审批产物的变更文件数量摘要",
+      "goal": "为重大修改审批的产物增加 changed_files_count 摘要，并在文档和回归测试中说明它的用途。",
+      "context_files": [
+        "automation/runner/orchestrator.py",
+        "tests/test_automation_runner.py",
+        "docs/automation/RTCTraining_内部自主开发Agent.md",
+        "docs/RTCTraining_项目开发文档.md"
+      ],
+      "allowed_paths": [
+        "automation/runner/orchestrator.py",
+        "tests/test_automation_runner.py",
+        "docs/automation/RTCTraining_内部自主开发Agent.md",
+        "docs/RTCTraining_项目开发文档.md"
+      ],
+      "acceptance": [
+        "approval 产物中记录 changed_files_count。",
+        "Markdown 报告里能看到重大修改的变更数量摘要。",
+        "文档说明 blocked 的重大修改审批会携带 changed_files_count。",
+        "自动化 runner 测试通过。"
+      ],
+      "required_checks": [
+        ".venv/bin/python -m pytest tests/test_automation_runner.py -v"
+      ],
+      "mode": "worktree",
+      "risk_level": "low",
+      "max_instances": 1
     }
   ]
 }
