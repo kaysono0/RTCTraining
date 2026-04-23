@@ -1,0 +1,6 @@
+{
+  "enabled": true,
+  "min_ready_tasks": 2,
+  "max_ready_tasks": 2,
+  "catalog_path": "automation/config/task_catalog.json"
+}

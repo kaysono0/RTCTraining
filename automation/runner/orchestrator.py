@@ -11,6 +11,8 @@ from automation.runner.artifact_store import ArtifactStore, utc_now_iso
 from automation.runner.diff_validator import apply_unified_patch, validate_patch
 from automation.runner.model_gateway import build_model_gateway
 from automation.runner.policies import Policy
+from automation.runner.task_supply import TaskSupplyManager
+from automation.runner.task_baseline import validate_task_baseline
 from automation.runner.task_loader import Task, TaskLoader
 from automation.runner.test_runner import CheckResult, TestRunner
 from automation.runner.worktree_manager import WorktreeManager
@@ -23,7 +25,13 @@ class RunResult:
     reason: str = ""
 
 
-def _block_for_approval(task: Task, loader: TaskLoader, artifacts: ArtifactStore, reason: str) -> RunResult:
+def _block_for_approval(
+    task: Task,
+    loader: TaskLoader,
+    artifacts: ArtifactStore,
+    reason: str,
+    changed_files: list[str] | None = None,
+) -> RunResult:
     artifacts.write_json(
         f"approvals/{task.id}.json",
         {
@@ -31,29 +39,83 @@ def _block_for_approval(task: Task, loader: TaskLoader, artifacts: ArtifactStore
             "reason": reason,
             "created_at": utc_now_iso(),
             "required_user_action": "Review the task contract and move it back to ready after approval.",
+            "changed_files": changed_files or [],
         },
     )
     artifacts.write_json(
         f"reports/{task.id}.json",
-        {"task_id": task.id, "status": "blocked", "reason": reason, "checks": [], "changed_files": []},
+        {
+            "task_id": task.id,
+            "status": "blocked",
+            "reason": reason,
+            "checks": [],
+            "changed_files": changed_files or [],
+        },
     )
+    _write_markdown_report(artifacts, task, "blocked", changed_files or [], [], reason)
     loader.move(task, "blocked")
     return RunResult(task.id, "blocked", f"approval required: {reason}")
 
 
-def _fail(task: Task, loader: TaskLoader, artifacts: ArtifactStore, reason: str, changed_files: list[str] | None = None) -> RunResult:
+def _fail(
+    task: Task,
+    loader: TaskLoader,
+    artifacts: ArtifactStore,
+    reason: str,
+    changed_files: list[str] | None = None,
+    *,
+    failure_stage: str = "",
+    repair_attempts: int = 0,
+) -> RunResult:
     artifacts.write_json(
         f"reports/{task.id}.json",
         {
             "task_id": task.id,
             "status": "failed",
             "reason": reason,
+            "failure_stage": failure_stage,
+            "repair_attempts": repair_attempts,
             "checks": [],
             "changed_files": changed_files or [],
         },
     )
+    _write_markdown_report(
+        artifacts,
+        task,
+        "failed",
+        changed_files or [],
+        [],
+        reason,
+        failure_stage=failure_stage,
+        repair_attempts=repair_attempts,
+    )
     loader.move(task, "failed")
     return RunResult(task.id, "failed", reason)
+
+
+def _block_for_baseline(task: Task, loader: TaskLoader, artifacts: ArtifactStore, reason: str, changed_files: list[str] | None = None) -> RunResult:
+    artifacts.write_json(
+        f"reports/{task.id}.json",
+        {
+            "task_id": task.id,
+            "status": "blocked",
+            "reason": reason,
+            "checks": [],
+            "changed_files": changed_files or [],
+        },
+    )
+    _write_markdown_report(artifacts, task, "blocked", changed_files or [], [], reason)
+    artifacts.write_json(
+        f"approvals/{task.id}.json",
+        {
+            "task_id": task.id,
+            "reason": reason,
+            "created_at": utc_now_iso(),
+            "required_user_action": "Regenerate the task from the current baseline before retrying.",
+        },
+    )
+    loader.move(task, "blocked")
+    return RunResult(task.id, "blocked", f"baseline mismatch: {reason}")
 
 
 def _write_markdown_report(
@@ -63,7 +125,22 @@ def _write_markdown_report(
     changed_files: list[str],
     checks: list[CheckResult],
     reason: str = "",
+    *,
+    failure_stage: str = "",
+    repair_attempts: int = 0,
 ) -> None:
+    baseline = task.data.get("baseline")
+    baseline_kind = "n/a"
+    baseline_digest = "n/a"
+    baseline_file_count = 0
+    if isinstance(baseline, dict):
+        baseline_kind = str(baseline.get("kind", "n/a"))
+        baseline_digest = str(baseline.get("digest", "n/a"))
+        files = baseline.get("files", [])
+        if isinstance(files, list):
+            baseline_file_count = len(files)
+    context_files = [str(value) for value in task.data.get("context_files", [])]
+    required_checks = [str(value) for value in task.data.get("required_checks", [])]
     lines = [
         f"# Automation Task Report: {task.id}",
         "",
@@ -71,14 +148,45 @@ def _write_markdown_report(
         f"- Goal: {task.data['goal']}",
         f"- Reason: {reason or 'n/a'}",
         "",
+        "## Baseline Summary",
+        f"- Kind: {baseline_kind}",
+        f"- Digest: `{baseline_digest}`",
+        f"- Manifest file count: {baseline_file_count}",
+        f"- Context file count: {len(context_files)}",
+        f"- Required check count: {len(required_checks)}",
+        "",
+        "## Context Files",
+        *_markdown_list(context_files),
+        "",
+        "## Required Checks",
+        *_markdown_list(required_checks),
+        "",
         "## Changed Files",
-        *(f"- {path}" for path in changed_files),
+        *_markdown_list(changed_files, wrap_backticks=True),
         "",
         "## Checks",
         *(f"- `{check.command}`: {check.status} ({check.exit_code})" for check in checks),
         "",
     ]
+    if status == "failed":
+        lines.extend(
+            [
+                "## Failure Summary",
+                f"- Stage: {failure_stage or 'n/a'}",
+                f"- Repair Attempts: {repair_attempts}",
+                f"- Reason: {reason or 'n/a'}",
+                "",
+            ]
+        )
     artifacts.write_text(f"reports/{task.id}.md", "\n".join(lines))
+
+
+def _markdown_list(items: list[str], *, wrap_backticks: bool = False) -> list[str]:
+    if not items:
+        return ["- n/a"]
+    if wrap_backticks:
+        return [f"- `{item}`" for item in items]
+    return [f"- {item}" for item in items]
 
 
 def _workspace_for_task(root: Path, task: Task) -> tuple[Path, str, str | None]:
@@ -123,12 +231,34 @@ def _failed_check_payload(checks: list[CheckResult]) -> list[dict[str, Any]]:
     return [check.__dict__ for check in checks if check.status != "passed"]
 
 
+def _patch_failure_payload(reason: str) -> list[dict[str, Any]]:
+    return [
+        {
+            "command": "apply patch",
+            "status": "failed",
+            "exit_code": 1,
+            "duration_ms": 0,
+            "log_path": "",
+            "reason": reason,
+        }
+    ]
+
+
+def _is_patch_context_mismatch(reason: str) -> bool:
+    return "patch context does not match" in reason
+
+
+def _is_major_patch_reason(reason: str) -> bool:
+    return "size limit" in reason or "too many files" in reason
+
+
 def run_once(root: str | Path = ".") -> RunResult:
     root = Path(root)
     artifacts = ArtifactStore(root)
     artifacts.ensure()
     loader = TaskLoader(root)
     loader.ensure()
+    TaskSupplyManager(root).replenish()
     task = loader.next_ready()
     if task is None:
         return RunResult(None, "idle", "no ready tasks")
@@ -139,6 +269,13 @@ def run_once(root: str | Path = ".") -> RunResult:
         return _block_for_approval(task, loader, artifacts, decision.reason)
     if not decision.allowed:
         return _fail(task, loader, artifacts, decision.reason)
+
+    baseline = task.data.get("baseline")
+    if baseline is None:
+        return _block_for_baseline(task, loader, artifacts, "task baseline is missing")
+    baseline_check = validate_task_baseline(root, baseline)
+    if not baseline_check.ok:
+        return _block_for_baseline(task, loader, artifacts, baseline_check.reason, baseline_check.changed_paths or [])
 
     task_path = loader.move(task, "running")
     task = Task(path=task_path, data=task.data)
@@ -153,35 +290,133 @@ def run_once(root: str | Path = ".") -> RunResult:
         artifacts.write_json(f"plans/{task.id}.json", plan)
         patch = model.develop(task.data, plan)
     except Exception as exc:
-        return _fail(task, loader, artifacts, str(exc))
+        return _fail(task, loader, artifacts, str(exc), failure_stage="model")
     artifacts.write_text(f"patches/{task.id}.patch", patch)
 
     validation = _validate_patch_for_task(patch, task, policy)
     if not validation.ok:
-        return _fail(task, loader, artifacts, validation.reason, validation.changed_files)
+        if _is_major_patch_reason(validation.reason):
+            return _block_for_approval(task, loader, artifacts, validation.reason, validation.changed_files)
+        return _fail(task, loader, artifacts, validation.reason, validation.changed_files, failure_stage="patch_validation")
 
+    repair_attempts = 0
+    max_repair_attempts = int(task.data.get("max_repair_attempts", policy.data.get("default_max_repair_attempts", 0)))
     try:
         apply_unified_patch(workspace_root, patch)
     except Exception as exc:
-        return _fail(task, loader, artifacts, str(exc), validation.changed_files)
+        patch_failure_reason = str(exc)
+        if not _is_patch_context_mismatch(patch_failure_reason):
+            return _fail(
+                task,
+                loader,
+                artifacts,
+                patch_failure_reason,
+                validation.changed_files,
+                failure_stage="patch_apply",
+            )
+        repair_checks = _patch_failure_payload(patch_failure_reason)
+        while repair_attempts < max_repair_attempts:
+            repair_attempts += 1
+            try:
+                repair_patch = model.repair(task.data, plan, repair_checks, repair_attempts)
+            except Exception as repair_exc:
+                return _fail(
+                    task,
+                    loader,
+                    artifacts,
+                    str(repair_exc),
+                    validation.changed_files,
+                    failure_stage="repair_model",
+                    repair_attempts=repair_attempts,
+                )
+            artifacts.write_text(f"patches/{task.id}.repair-{repair_attempts}.patch", repair_patch)
+            repair_validation = _validate_patch_for_task(repair_patch, task, policy)
+            if not repair_validation.ok:
+                repair_failure_reason = repair_validation.reason
+                if _is_major_patch_reason(repair_failure_reason):
+                    return _block_for_approval(task, loader, artifacts, repair_failure_reason, repair_validation.changed_files)
+                if _is_patch_context_mismatch(repair_failure_reason) and repair_attempts < max_repair_attempts:
+                    repair_checks = _patch_failure_payload(repair_failure_reason)
+                    continue
+                return _fail(
+                    task,
+                    loader,
+                    artifacts,
+                    repair_failure_reason,
+                    repair_validation.changed_files,
+                    failure_stage="repair_patch_validation",
+                    repair_attempts=repair_attempts,
+                )
+            try:
+                apply_unified_patch(workspace_root, repair_patch)
+            except Exception as repair_exc:
+                repair_failure_reason = str(repair_exc)
+                if _is_patch_context_mismatch(repair_failure_reason) and repair_attempts < max_repair_attempts:
+                    repair_checks = _patch_failure_payload(repair_failure_reason)
+                    continue
+                return _fail(
+                    task,
+                    loader,
+                    artifacts,
+                    repair_failure_reason,
+                    repair_validation.changed_files,
+                    failure_stage="repair_patch_apply",
+                    repair_attempts=repair_attempts,
+                )
+            validation = type(repair_validation)(True, repair_validation.changed_files)
+            break
+        else:
+            return _fail(
+                task,
+                loader,
+                artifacts,
+                patch_failure_reason,
+                validation.changed_files,
+                failure_stage="patch_apply",
+                repair_attempts=repair_attempts,
+            )
 
     checks = _run_required_checks(workspace_root, root, policy, artifacts, task.id, list(task.data["required_checks"]))
-    repair_attempts = 0
-    max_repair_attempts = int(task.data.get("max_repair_attempts", policy.data.get("default_max_repair_attempts", 0)))
     while any(check.status != "passed" for check in checks) and repair_attempts < max_repair_attempts:
         repair_attempts += 1
         try:
             repair_patch = model.repair(task.data, plan, _failed_check_payload(checks), repair_attempts)
         except Exception as exc:
-            return _fail(task, loader, artifacts, str(exc), validation.changed_files)
+            return _fail(
+                task,
+                loader,
+                artifacts,
+                str(exc),
+                validation.changed_files,
+                failure_stage="repair_model",
+                repair_attempts=repair_attempts,
+            )
         artifacts.write_text(f"patches/{task.id}.repair-{repair_attempts}.patch", repair_patch)
         repair_validation = _validate_patch_for_task(repair_patch, task, policy)
         if not repair_validation.ok:
-            return _fail(task, loader, artifacts, repair_validation.reason, repair_validation.changed_files)
+            if _is_major_patch_reason(repair_validation.reason):
+                return _block_for_approval(task, loader, artifacts, repair_validation.reason, repair_validation.changed_files)
+            return _fail(
+                task,
+                loader,
+                artifacts,
+                repair_validation.reason,
+                repair_validation.changed_files,
+                failure_stage="repair_patch_validation",
+                repair_attempts=repair_attempts,
+            )
         try:
             apply_unified_patch(workspace_root, repair_patch)
         except Exception as exc:
-            return _fail(task, loader, artifacts, str(exc), repair_validation.changed_files)
+            return _fail(
+                task,
+                loader,
+                artifacts,
+                str(exc),
+                repair_validation.changed_files,
+                failure_stage="repair_patch_apply",
+                repair_attempts=repair_attempts,
+            )
         changed_files = list(dict.fromkeys(validation.changed_files + repair_validation.changed_files))
         validation = type(validation)(True, changed_files)
         checks = _run_required_checks(
@@ -210,7 +445,15 @@ def run_once(root: str | Path = ".") -> RunResult:
         },
     }
     artifacts.write_json(f"reports/{task.id}.json", report)
-    _write_markdown_report(artifacts, task, status, validation.changed_files, checks, report["reason"])
+    _write_markdown_report(
+        artifacts,
+        task,
+        status,
+        validation.changed_files,
+        checks,
+        report["reason"],
+        repair_attempts=repair_attempts,
+    )
     loader.move(task, status)
     return RunResult(task.id, status, report["reason"])
 

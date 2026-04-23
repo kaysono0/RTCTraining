@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import fnmatch
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,9 +19,43 @@ def _clean_diff_path(path: str) -> str:
     path = path.strip()
     if path == "/dev/null":
         return path
+    if len(path) >= 2 and path[0] == '"' and path[-1] == '"':
+        path = _decode_git_quoted_path(path[1:-1])
     if path.startswith("a/") or path.startswith("b/"):
         return path[2:]
     return path
+
+
+def _decode_git_quoted_path(path: str) -> str:
+    decoded = bytearray()
+    i = 0
+    while i < len(path):
+        char = path[i]
+        if char == "\\" and i + 1 < len(path):
+            next_char = path[i + 1]
+            octal = path[i + 1 : i + 4]
+            if len(octal) == 3 and all("0" <= digit <= "7" for digit in octal):
+                decoded.append(int(octal, 8))
+                i += 4
+                continue
+            escapes = {
+                "\\": ord("\\"),
+                '"': ord('"'),
+                "n": ord("\n"),
+                "t": ord("\t"),
+                "r": ord("\r"),
+                "b": ord("\b"),
+                "f": ord("\f"),
+                "a": ord("\a"),
+                "v": ord("\v"),
+            }
+            if next_char in escapes:
+                decoded.append(escapes[next_char])
+                i += 2
+                continue
+        decoded.extend(char.encode("utf-8"))
+        i += 1
+    return decoded.decode("utf-8")
 
 
 def changed_files_from_patch(patch: str) -> list[str]:
@@ -59,17 +94,42 @@ def validate_patch(
 
 
 def apply_unified_patch(root: Path, patch: str) -> None:
+    result = subprocess.run(
+        ["git", "-C", str(root), "apply", "--whitespace=nowarn", "--binary", "-"],
+        input=patch,
+        text=True,
+        capture_output=True,
+    )
+    if result.returncode == 0:
+        return
+    if "diff --git" in patch:
+        reason = result.stderr.strip() or result.stdout.strip() or "git apply failed"
+        raise ValueError(reason)
+    _apply_simple_unified_patch(root, patch)
+
+
+def _apply_simple_unified_patch(root: Path, patch: str) -> None:
     current_file: Path | None = None
     old_lines: list[str] = []
     new_lines: list[str] = []
 
     def flush() -> None:
+        nonlocal current_file, old_lines, new_lines
         if current_file is None:
             return
-        original = current_file.read_text(encoding="utf-8").splitlines(keepends=True)
-        if original != old_lines:
-            raise ValueError(f"patch context does not match: {current_file.relative_to(root)}")
-        current_file.write_text("".join(new_lines), encoding="utf-8")
+        if not current_file.exists():
+            if old_lines:
+                raise ValueError(f"patch context does not match: {current_file.relative_to(root)}")
+            current_file.parent.mkdir(parents=True, exist_ok=True)
+            current_file.write_text("".join(new_lines), encoding="utf-8")
+        else:
+            original = current_file.read_text(encoding="utf-8").splitlines(keepends=True)
+            if original != old_lines:
+                raise ValueError(f"patch context does not match: {current_file.relative_to(root)}")
+            current_file.write_text("".join(new_lines), encoding="utf-8")
+        current_file = None
+        old_lines = []
+        new_lines = []
 
     for line in patch.splitlines(keepends=True):
         if line.startswith("--- "):

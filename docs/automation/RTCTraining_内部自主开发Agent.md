@@ -24,11 +24,25 @@
 已实现：
 
 - `patch-only` 模式。
-- `worktree` 模式：为任务创建 `.automation/worktrees/<task_id>` 隔离工作区。
+- `worktree` 模式：为任务创建基于当前工作区快照的 `.automation/worktrees/<task_id>` 隔离副本。
 - `stub` 模型网关，通过任务里的 `stub_patch` 字段提供 deterministic patch。
 - `command` 模型网关，通过 `automation/config/runtime.json` 的 `model_command` 调用外部模型命令生成 unified diff。
+- 推荐的真实模型接法是 `python -m automation.runner.codex_bridge`，它会在临时 worktree 中调用 `codex exec` 并把最终 diff 返回给 runner。
+- Codex 桥接层在启动 `codex exec` 前会先执行 `source ~/.zshrc`，确保 zsh 初始化和用户侧 shell 配置生效。
+- `codex` 的运行过程会写入 `automation/artifacts/transcripts/<task_id>.jsonl`，包括 start、stdout/stderr chunk、finish、timeout、diff 和结果摘要事件，便于观察长启动过程中的输出变化。
+- `codex_exec_start` 事件现在会附带 `input_summary`，里面包含 phase、task_id、context_files、allowed_paths、required_checks、baseline 摘要、plan 摘要和 repair 元数据，方便复原单次请求的上下文。
+- `plan` 事件也会附带 `input_summary`，这样 plan / develop / repair 三阶段都能用同一种结构回看上下文。
+- `plan`、`develop`、`repair` 现在是硬分阶段模板：`plan` 只产出计划对象，`develop` 使用已接受计划并输出 patch，`repair` 额外携带 failed checks 和 repair attempt。
+- 如果看到 `Reconnecting...`，必须继续观察直到出现 `Reconnecting... 5/5`。若后续还有持续输出，就继续等待，直到 transcript 不再新增输出为止，再把该次 Codex 运行视为结束。
+- transcript 的结果摘要会明确记录两件事：`local_files_changed` 表示 Codex 是否真的改动了本地文件，`exported_patch` 表示桥接层最终是否导出了可应用的 unified diff。
+- `scripts/watch_codex_transcript.py` 可以按 transcript 的静默窗口自动等待到日志停止增长，再输出这两个结果摘要，适合做长启动验证。
+- runner 现在也支持新文件 patch；`apply_unified_patch` 会在目标文件不存在时创建它。
+- `automation/config/task_supply.json` 和 `automation/config/task_catalog.json` 可以定义任务补给池；runner 在取任务前会自动补齐 ready 队列，也可以用 `python -m automation.runner.task_cli replenish` 手动补给。
+- 首版仓库默认 catalog 以低风险文档同步、回归测试和 report baseline summary 任务起步，目标是先把供给链路跑稳，再扩展更复杂的开发任务。
 - 有限失败修复循环：required checks 失败后，最多按任务的 `max_repair_attempts` 请求修复 patch 并重跑测试。
+- 如果 patch 应用阶段发生 `patch context does not match`，runner 会先把它当作可重试的上下文漂移，再请求 repair patch；只有重试耗尽后才进入 `failed`。
 - 任务创建 CLI 和审批恢复 CLI。
+- 任务创建时会自动生成 `baseline` manifest，执行前 runner 会先比对当前工作区与该 manifest；如果文件内容漂移，任务会被拦下并要求重新生成。
 - 任务队列：`ready`、`running`、`done`、`failed`、`blocked`。
 - 策略文件：`automation/config/policy.json`。
 - 连续运行入口：`python -m automation.runner.orchestrator run-continuous`。
@@ -106,7 +120,7 @@ make automation-task-help
 ```json
 {
   "model_backend": "command",
-  "model_command": "your-model-command --emit-unified-diff"
+  "model_command": ".venv/bin/python -m automation.runner.codex_bridge"
 }
 ```
 
@@ -116,8 +130,9 @@ make automation-task-help
 - `task`: 当前任务契约。
 - `plan`: 当前计划。
 - `failed_checks`: 仅 repair 阶段存在，包含失败检查摘要。
+- `repair_attempt`: 仅 repair 阶段存在，表示当前修复轮次。
 
-命令必须把 unified diff 输出到 stdout。runner 会继续执行路径、大小、文件数和 required checks 校验。模型命令本身如果需要网络或 API key，由运行环境负责提供。
+命令必须把 unified diff 输出到 stdout。推荐桥接层先调用 `codex exec`，在临时 worktree 中完成修改，再把 `git diff --binary` 输出给 runner。`codex_bridge` 会把 phase、task、plan、failed checks 和 baseline 摘要整理成结构化 prompt，并把输入摘要写进 transcript。runner 会继续执行路径、大小、文件数和 required checks 校验。模型命令本身如果需要网络或 API key，由运行环境负责提供。
 
 ## 5. 任务契约
 
@@ -175,8 +190,8 @@ automation/tasks/ready/<task_id>.json
 - patch 触碰 `global_forbidden_paths`。
 - patch 触碰任务 `forbidden_paths`。
 - patch 修改 `allowed_paths` 之外的文件。
-- patch 超过 `max_patch_bytes`。
-- patch 修改文件数超过 `max_changed_files`。
+- patch 超过 `max_patch_bytes` 时不直接失败，而是进入 `blocked`，要求人工确认这次属于重大修改。
+- patch 修改文件数超过 `max_changed_files` 时不直接失败，而是进入 `blocked`，要求人工确认这次属于重大修改。
 
 审批请求写入：
 
@@ -194,6 +209,8 @@ automation/artifacts/approvals/<task_id>.json
 - patch 没有命中禁止路径。
 - required checks 全部通过。
 - plan、patch、测试日志、transcript、JSON 报告和 Markdown 报告全部落盘。
+- Markdown 报告会显式展示 baseline 摘要，以及 `context_files` 和 `required_checks` 的边界，便于回看每次执行的输入范围。
+- 失败或阻塞任务也会写出 Markdown 报告；失败报告包含 `Failure Summary`，会标出是模型、补丁应用、修复模型、修复补丁，还是 required checks 阶段失败。
 
 任务失败会进入 `failed`，并在报告中记录原因。
 

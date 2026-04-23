@@ -2,7 +2,8 @@
   "mode": "continuous",
   "poll_interval_seconds": 30,
   "max_tasks_per_run": 1,
-  "model_backend": "stub",
+  "model_backend": "command",
+  "model_command": ".venv/bin/python -m automation.runner.codex_bridge",
   "approval_required_for": [
     "medium risk tasks",
     "high risk tasks",

@@ -487,10 +487,26 @@ rtc_training/
 - JSON 任务契约。
 - 策略引擎。
 - unified diff。
-- git worktree。
+- 当前工作区快照副本。
 - stub 模型网关。
 - command 模型网关，用外部命令接入真实模型。
+- Codex 桥接层通过 `codex exec` 在临时快照副本中生成 patch，再由 runner 统一校验和应用。
+- Codex 桥接层在启动 `codex exec` 前会先执行 `source ~/.zshrc`，确保 zsh 初始化和用户侧 shell 配置生效。
+- Codex 桥接层会把 stdout/stderr chunk、finish、timeout、diff 和结果摘要事件写入本地 transcript，方便观察第一次启动过程中的输出变化。
+- 观察 Codex 输出时，如果出现 `Reconnecting...`，要继续等到 `Reconnecting... 5/5`。若 5/5 之后还有持续日志输出，就继续等待，直到 transcript 不再新增输出为止，再判断该次运行完成。
+- 结果摘要会分别标明 `local_files_changed` 和 `exported_patch`，用来区分“Codex 实际改了本地文件”与“桥接层最终导出了 PATCH”。
+- `scripts/watch_codex_transcript.py` 提供 transcript 静默窗口观察，适合在长启动场景中自动判断日志什么时候真正停下。
+- `codex_exec_start` 事件会附带 `input_summary`，里面包含 phase、task_id、context_files、allowed_paths、required_checks、baseline 摘要、plan 摘要和 repair 元数据，方便复原单次请求的上下文。
+- `plan` 事件也会附带 `input_summary`，让 plan / develop / repair 三阶段都能用相同的摘要格式回看上下文。
+- `plan`、`develop`、`repair` 现在是硬分阶段模板：`plan` 只产出计划对象，`develop` 使用已接受计划并输出 patch，`repair` 额外携带 failed checks 和 repair attempt。
+- 新文件 patch 也能被 runner 应用；`apply_unified_patch` 会在目标文件不存在时创建它。
+- `automation/config/task_supply.json` 和 `automation/config/task_catalog.json` 提供任务补给与分发；runner 在取任务前会自动补齐 ready 队列，`python -m automation.runner.task_cli replenish` 可手动补给。
+- 仓库默认 catalog 以低风险 docs sync / regression test / report baseline summary 任务作为起点，先验证供给链路，再逐步扩展到更多开发任务。
 - 有限失败修复循环。
+- 任务 contract 现在还包含 baseline manifest；runner 会在进入 `running` 之前先校验 baseline，若当前工作区已偏离该 manifest，会把任务拦回 `blocked`，要求重新生成任务再继续。
+- runner 会为 `done`、`failed` 和 `blocked` 任务都生成 Markdown 报告；失败或阻塞报告会显式展示 `Baseline Summary`，以及 `Context Files`、`Required Checks` 和 `Failure Summary`，便于回看输入边界和失败阶段。
+- 重大 patch 不直接失败，而是进入 `blocked` 让用户确认。触发条件包括 patch 超过 `max_patch_bytes`，或者修改文件数超过 `max_changed_files`。
+- patch 应用阶段如果出现 `patch context does not match`，runner 会先把它当作可重试信号，触发 repair patch；只有重试耗尽后才记为 failed。
 
 ## 7. 开发路线总览
 
@@ -1205,6 +1221,7 @@ automation/
 │   └── runtime.json
 ├── prompts/
 ├── runner/
+│   ├── codex_bridge.py
 │   ├── task_loader.py
 │   ├── task_cli.py
 │   ├── policies.py
@@ -1303,7 +1320,7 @@ automation/
 截至 2026-04-22，`automation/` 已落地首版可验证闭环：
 
 - 当前目录已初始化为 git 仓库，首版支持 `patch-only` 和 `worktree` 两种模式。
-- `worktree` 模式会创建 `.automation/worktrees/<task_id>`，在隔离工作区应用 patch 和运行测试，主工作区只保存任务状态与 artifacts。
+- `worktree` 模式会基于当前工作区快照创建 `.automation/worktrees/<task_id>` 下的隔离副本，在副本里应用 patch 和运行测试，主工作区只保存任务状态与 artifacts。
 - 模型网关支持 `stub` 和 `command`。`stub` 从任务契约的 `stub_patch` 字段读取 unified diff；`command` 通过 runtime 配置调用外部命令，把真实模型接入统一的 patch 协议。
 - required checks 失败后，runner 会在 `max_repair_attempts` 限制内请求修复 patch，并对修复 patch 重新执行同一套策略校验。
 - 已实现任务状态：`ready`、`running`、`done`、`failed`、`blocked`。
@@ -1658,6 +1675,18 @@ MVP 不要求：
 7. 实现报告和产物。
 8. 实现 command 模型网关。
 9. 接入低风险开发任务。
+
+`command` 模型网关的推荐接法是：
+
+```bash
+.venv/bin/python -m automation.runner.codex_bridge
+```
+
+该桥接层读取 runner 输入的 JSON，调用 `codex exec`，在临时 worktree 中完成修改，然后输出统一 diff 给 runner 继续校验。可通过环境变量调整 Codex 命令和模型：
+
+- `RTC_AUTOMATION_CODEX_BIN`
+- `RTC_AUTOMATION_CODEX_MODEL`
+- `RTC_AUTOMATION_CODEX_PROFILE`
 
 ## 20. HTTP API 详细协议
 

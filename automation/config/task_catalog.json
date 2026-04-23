@@ -1,0 +1,154 @@
+{
+  "recipes": [
+    {
+      "id": "context-contract-docs",
+      "title": "明确上下文传递规范",
+      "goal": "把每次新 codex exec 需要显式注入的上下文、可复用的持久化上下文，以及 transcript 的分工写进自主开发文档。",
+      "context_files": [
+        "docs/automation/RTCTraining_内部自主开发Agent.md",
+        "docs/RTCTraining_项目开发文档.md"
+      ],
+      "allowed_paths": [
+        "docs/automation/RTCTraining_内部自主开发Agent.md",
+        "docs/RTCTraining_项目开发文档.md"
+      ],
+      "acceptance": [
+        "文档明确列出新任务需要显式传入的上下文。",
+        "文档说明快照副本、task contract、plan 和 transcript 的职责边界。"
+      ],
+      "required_checks": [
+        ".venv/bin/python -m pytest tests/test_automation_runner.py -v"
+      ],
+      "mode": "worktree",
+      "risk_level": "low",
+      "max_instances": 1
+    },
+    {
+      "id": "task-supply-regression",
+      "title": "补强任务补给回归",
+      "goal": "为任务补给机制增加一个回归任务，确认 max_instances 和 ready 队列补给行为在重复执行时保持稳定。",
+      "context_files": [
+        "automation/runner/task_supply.py",
+        "tests/test_task_supply.py"
+      ],
+      "allowed_paths": [
+        "automation/runner/task_supply.py",
+        "tests/test_task_supply.py"
+      ],
+      "acceptance": [
+        "任务补给逻辑继续跳过已存在的 task id。",
+        "任务补给回归测试在本地通过。"
+      ],
+      "required_checks": [
+        ".venv/bin/python -m pytest tests/test_task_supply.py -v"
+      ],
+      "mode": "worktree",
+      "risk_level": "low",
+      "max_instances": 1
+    },
+    {
+      "id": "report-baseline-summary",
+      "title": "补全任务报告的 baseline 摘要",
+      "goal": "让自动化任务报告在 Markdown 中展示 baseline 摘要、context_files 和 required_checks，方便回看每次执行的输入与边界。",
+      "context_files": [
+        "automation/runner/orchestrator.py",
+        "tests/test_automation_runner.py",
+        "docs/automation/RTCTraining_内部自主开发Agent.md"
+      ],
+      "allowed_paths": [
+        "automation/runner/orchestrator.py",
+        "tests/test_automation_runner.py",
+        "docs/automation/RTCTraining_内部自主开发Agent.md"
+      ],
+      "acceptance": [
+        "Markdown 任务报告新增 baseline 摘要。",
+        "报告中能看出 context_files 和 required_checks 的边界。",
+        "自动化 runner 测试通过。"
+      ],
+      "required_checks": [
+        ".venv/bin/python -m pytest tests/test_automation_runner.py -v"
+      ],
+      "mode": "worktree",
+      "risk_level": "low",
+      "max_instances": 1
+    },
+    {
+      "id": "failure-summary-project-docs",
+      "title": "补充失败报告说明",
+      "goal": "在主项目文档中补充自动化 runner 的失败报告说明，明确 failed/blocked 任务也会输出 Markdown Failure Summary。",
+      "context_files": [
+        "docs/RTCTraining_项目开发文档.md",
+        "docs/automation/RTCTraining_内部自主开发Agent.md"
+      ],
+      "allowed_paths": [
+        "docs/RTCTraining_项目开发文档.md",
+        "docs/automation/RTCTraining_内部自主开发Agent.md"
+      ],
+      "acceptance": [
+        "主项目文档中说明 failed/blocked 任务也会输出 Failure Summary。",
+        "自动化 runner 测试通过。"
+      ],
+      "required_checks": [
+        ".venv/bin/python -m pytest tests/test_automation_runner.py -v"
+      ],
+      "mode": "worktree",
+      "risk_level": "low",
+      "max_instances": 1
+    },
+    {
+      "id": "approval-changed-files-regression",
+      "title": "补全审批产物的变更文件记录",
+      "goal": "为重大修改审批的产物增加 changed_files 记录，并在文档和回归测试中说明它的用途。",
+      "context_files": [
+        "automation/runner/orchestrator.py",
+        "tests/test_automation_runner.py",
+        "docs/automation/RTCTraining_内部自主开发Agent.md"
+      ],
+      "allowed_paths": [
+        "automation/runner/orchestrator.py",
+        "tests/test_automation_runner.py",
+        "docs/automation/RTCTraining_内部自主开发Agent.md"
+      ],
+      "acceptance": [
+        "approval 产物中记录 changed_files。",
+        "文档说明 blocked 的重大修改审批会携带 changed_files。",
+        "自动化 runner 测试通过。"
+      ],
+      "required_checks": [
+        ".venv/bin/python -m pytest tests/test_automation_runner.py -v"
+      ],
+      "mode": "worktree",
+      "risk_level": "low",
+      "max_instances": 1
+    },
+    {
+      "id": "approval-changed-files-regression-fixed",
+      "title": "补全审批产物的变更文件记录（修正版）",
+      "goal": "为重大修改审批的产物增加 changed_files 记录，并把 size limit 场景也纳入允许范围以便回归验证。",
+      "context_files": [
+        "automation/runner/orchestrator.py",
+        "automation/runner/diff_validator.py",
+        "tests/test_automation_runner.py",
+        "docs/automation/RTCTraining_内部自主开发Agent.md"
+      ],
+      "allowed_paths": [
+        "automation/runner/orchestrator.py",
+        "automation/runner/diff_validator.py",
+        "tests/test_automation_runner.py",
+        "docs/automation/RTCTraining_内部自主开发Agent.md"
+      ],
+      "acceptance": [
+        "approval 产物中记录 changed_files。",
+        "size limit 场景也能保留 changed_files。",
+        "文档说明 blocked 的重大修改审批会携带 changed_files。",
+        "自动化 runner 测试通过。"
+      ],
+      "required_checks": [
+        ".venv/bin/python -m pytest tests/test_automation_runner.py -v"
+      ],
+      "mode": "worktree",
+      "risk_level": "low",
+      "max_instances": 1
+    }
+  ]
+}

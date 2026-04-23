@@ -4,6 +4,9 @@ import argparse
 import json
 from pathlib import Path
 
+from automation.runner.task_baseline import build_task_baseline
+from automation.runner.task_supply import TaskSupplyManager
+
 
 DEFAULT_FORBIDDEN_PATHS = ["data/**", "certs/**", ".env", ".venv/**"]
 
@@ -34,6 +37,7 @@ def create_task(
         "risk_level": risk_level,
         "mode": mode,
         "max_repair_attempts": 1,
+        "baseline": build_task_baseline(root, context_files, allowed_paths),
     }
     path = root / "automation/tasks/ready" / f"{task_id}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -52,6 +56,11 @@ def approve_task(root: Path, task_id: str) -> Path:
     target.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     source.unlink()
     return target
+
+
+def replenish_tasks(root: Path) -> list[Path]:
+    created_ids = TaskSupplyManager(root).replenish()
+    return [root / "automation/tasks/ready" / f"{task_id}.json" for task_id in created_ids]
 
 
 def _split_csv(value: str) -> list[str]:
@@ -76,6 +85,8 @@ def main() -> int:
     approve = subparsers.add_parser("approve", help="Approve a blocked task and move it back to ready")
     approve.add_argument("task_id")
 
+    replenish = subparsers.add_parser("replenish", help="Replenish ready tasks from the task supply catalog")
+
     args = parser.parse_args()
     root = Path(".")
     if args.command == "create":
@@ -96,6 +107,11 @@ def main() -> int:
     if args.command == "approve":
         path = approve_task(root, args.task_id)
         print(path)
+        return 0
+    if args.command == "replenish":
+        paths = replenish_tasks(root)
+        for path in paths:
+            print(path)
         return 0
     return 2
 

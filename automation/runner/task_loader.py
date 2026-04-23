@@ -18,6 +18,7 @@ REQUIRED_FIELDS = {
     "risk_level",
     "mode",
 }
+BASELINE_FIELDS = {"kind", "digest", "files", "patterns"}
 
 
 class TaskError(ValueError):
@@ -71,6 +72,21 @@ class TaskLoader:
                 raise TaskError(f"{field} must be a list")
         if not data["allowed_paths"]:
             raise TaskError("allowed_paths must not be empty")
+        baseline = data.get("baseline")
+        if baseline is not None:
+            if not isinstance(baseline, dict):
+                raise TaskError("baseline must be an object")
+            missing_baseline = sorted(BASELINE_FIELDS - baseline.keys())
+            if missing_baseline:
+                raise TaskError(f"baseline is missing required fields: {', '.join(missing_baseline)}")
+            if baseline.get("kind") != "file-manifest":
+                raise TaskError("baseline has unsupported kind")
+            if not isinstance(baseline.get("digest"), str):
+                raise TaskError("baseline.digest must be a string")
+            if not isinstance(baseline.get("files"), list):
+                raise TaskError("baseline.files must be a list")
+            if "patterns" in baseline and not isinstance(baseline.get("patterns"), list):
+                raise TaskError("baseline.patterns must be a list")
         for field in ("context_files", "allowed_paths", "forbidden_paths"):
             for value in data[field]:
                 if Path(str(value)).is_absolute() or ".." in Path(str(value)).parts:

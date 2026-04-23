@@ -9,6 +9,52 @@ from pathlib import Path
 from automation.runner.artifact_store import ArtifactStore
 
 
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value]
+
+
+def _baseline_summary(task: dict[str, Any]) -> dict[str, Any]:
+    baseline = task.get("baseline", {})
+    kind = "n/a"
+    digest = "n/a"
+    files: list[Any] = []
+    patterns: list[Any] = []
+    if isinstance(baseline, dict):
+        kind = str(baseline.get("kind", "n/a"))
+        digest = str(baseline.get("digest", "n/a"))
+        files = baseline.get("files", []) if isinstance(baseline.get("files", []), list) else []
+        patterns = baseline.get("patterns", []) if isinstance(baseline.get("patterns", []), list) else []
+    return {
+        "kind": kind,
+        "digest": digest,
+        "file_count": len(files),
+        "pattern_count": len(patterns),
+    }
+
+
+def _request_summary(task: dict[str, Any], phase: str, plan: dict[str, Any] | None = None, failed_checks: list[dict[str, Any]] | None = None, attempt: int | None = None) -> dict[str, Any]:
+    summary: dict[str, Any] = {
+        "phase": phase,
+        "task_id": str(task.get("id", "unknown-task")),
+        "title": str(task.get("title", "")),
+        "goal": str(task.get("goal", "")),
+        "context_files": _string_list(task.get("context_files", [])),
+        "allowed_paths": _string_list(task.get("allowed_paths", [])),
+        "required_checks": _string_list(task.get("required_checks", [])),
+        "baseline": _baseline_summary(task),
+    }
+    if plan:
+        summary["plan_summary"] = str(plan.get("summary", ""))
+        summary["plan_files_to_change"] = _string_list(plan.get("files_to_change", []))
+    if failed_checks:
+        summary["failed_checks_count"] = len(failed_checks)
+    if attempt is not None:
+        summary["repair_attempt"] = attempt
+    return summary
+
+
 class StubModelGateway:
     """Deterministic model gateway used by the first local harness and tests."""
 
@@ -22,7 +68,10 @@ class StubModelGateway:
             "tests_to_run": task["required_checks"],
             "risk_notes": [f"risk_level={task['risk_level']}"],
         }
-        self.artifacts.append_transcript(str(task["id"]), {"type": "plan", "content": plan})
+        self.artifacts.append_transcript(
+            str(task["id"]),
+            {"type": "plan", "content": plan, "input_summary": _request_summary(task, "plan", plan)},
+        )
         return plan
 
     def develop(self, task: dict[str, Any], plan: dict[str, Any]) -> str:
@@ -83,7 +132,10 @@ class CommandModelGateway:
             "tests_to_run": task["required_checks"],
             "risk_notes": [f"risk_level={task['risk_level']}"],
         }
-        self.artifacts.append_transcript(str(task["id"]), {"type": "plan", "content": plan})
+        self.artifacts.append_transcript(
+            str(task["id"]),
+            {"type": "plan", "content": plan, "input_summary": _request_summary(task, "plan", plan)},
+        )
         return plan
 
     def develop(self, task: dict[str, Any], plan: dict[str, Any]) -> str:
