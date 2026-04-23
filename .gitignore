@@ -19,6 +19,8 @@ certs/
 data/
 automation/artifacts/
 .automation/
+.worktrees/
+worktrees/
 
 # Local editor/OS files
 .idea/
