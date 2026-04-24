@@ -11,5 +11,9 @@
     "paths matching global_forbidden_paths",
     "patches over max_patch_bytes",
     "patches changing more than max_changed_files"
-  ]
+  ],
+  "auto_integrate": true,
+  "auto_integrate_risk_levels": ["low"],
+  "auto_integrate_branch_prefix": "auto/task-",
+  "auto_integrate_remote": "origin"
 }

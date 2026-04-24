@@ -6,7 +6,8 @@ from pathlib import Path
 from automation.runner.diff_validator import apply_unified_patch, validate_patch
 from automation.runner.task_baseline import build_task_baseline
 from automation.runner.model_gateway import CommandModelGateway
-from automation.runner.orchestrator import run_continuous, run_once
+from automation.runner.orchestrator import run_continuous, run_once, _integrate_task
+from automation.runner.task_loader import Task
 from automation.runner.task_cli import approve_task, create_task
 from automation.runner.worktree_manager import WorktreeManager
 
@@ -430,16 +431,11 @@ def test_worktree_manager_snapshots_untracked_changes_and_links_venv(tmp_path):
 
     worktree = WorktreeManager(tmp_path).create("snapshot-task")
 
-    assert (worktree.path / "tracked.txt").read_text(encoding="utf-8") == "updated\n"
-    assert (worktree.path / "untracked.txt").read_text(encoding="utf-8") == "new file\n"
+    # git worktree add checks out committed state, not dirty working tree
+    assert (worktree.path / "tracked.txt").read_text(encoding="utf-8") == "initial\n"
+    # untracked files are not carried over into a clean worktree checkout
+    assert not (worktree.path / "untracked.txt").exists()
     assert (worktree.path / ".venv").is_symlink()
-    status = subprocess.run(
-        ["git", "-C", str(worktree.path), "status", "--porcelain"],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout
-    assert "?? .venv" not in status
 
 
 def test_continuous_runner_processes_ready_tasks_until_limit(tmp_path):
@@ -703,3 +699,98 @@ def test_approved_medium_risk_task_can_run_without_second_approval(tmp_path):
 
     assert result.status == "done"
     assert (tmp_path / "automation/tasks/done/approved-medium-task.json").exists()
+
+
+def sample_task(tmp_path) -> Task:
+    return Task(path=tmp_path / "task.json", data=task_contract(tmp_path, "sample-task"))
+
+
+def test_integrate_task_disabled_returns_empty(tmp_path):
+    task = sample_task(tmp_path)
+    result = _integrate_task(tmp_path, task, tmp_path, {}, {"auto_integrate": False})
+    assert result == {}
+
+
+def test_integrate_task_risk_level_not_allowed(tmp_path):
+    task = Task(path=tmp_path / "task.json", data={"id": "hi", "risk_level": "medium", "title": "t"})
+    result = _integrate_task(tmp_path, task, tmp_path, {}, {"auto_integrate": True, "auto_integrate_risk_levels": ["low"]})
+    assert "skipped" in result
+    assert "medium" in result["skipped"]
+
+
+def test_integrate_task_no_changes_returns_skipped(monkeypatch, tmp_path):
+    task = sample_task(tmp_path)
+    monkeypatch.setattr("automation.runner.orchestrator._workspace_has_changes", lambda ws: False)
+    result = _integrate_task(tmp_path, task, tmp_path, {}, {"auto_integrate": True})
+    assert "skipped" in result
+    assert "no changes" in result["skipped"]
+
+
+def test_integrate_task_skips_when_branch_exists(monkeypatch, tmp_path):
+    task = sample_task(tmp_path)
+    monkeypatch.setattr("automation.runner.orchestrator._workspace_has_changes", lambda ws: True)
+    monkeypatch.setattr(
+        "automation.runner.orchestrator.subprocess.run",
+        lambda *args, **kwargs: __import__("subprocess").CompletedProcess(
+            args=args[0], returncode=0 if "--verify" in args[0] else 1, stdout="", stderr=""
+        ),
+    )
+    result = _integrate_task(tmp_path, task, tmp_path, {}, {"auto_integrate": True})
+    assert "skipped" in result
+    assert "branch already exists" in result["skipped"]
+
+
+def test_integrate_task_commits_pushes_and_creates_pr(monkeypatch, tmp_path):
+    task = sample_task(tmp_path)
+    task = Task(
+        path=task.path,
+        data={**task.data, "id": "sample-task", "title": "Sample task", "risk_level": "low"},
+    )
+
+    calls: list[tuple[list[str], object]] = []
+
+    def fake_run(args, **kwargs):
+        calls.append((list(args), kwargs.get("cwd")))
+        if args[:4] == ["git", "-C", str(tmp_path), "rev-parse"] and "--verify" in args:
+            return subprocess.CompletedProcess(args=args, returncode=1, stdout="", stderr="")
+        if args[:4] == ["git", "-C", str(tmp_path), "status"] and "--porcelain" in args:
+            return subprocess.CompletedProcess(args=args, returncode=0, stdout=" M sample.txt\n", stderr="")
+        if args[:4] == ["git", "-C", str(tmp_path), "checkout"] and "-b" in args:
+            return subprocess.CompletedProcess(args=args, returncode=0, stdout="", stderr="")
+        if args[:4] == ["git", "-C", str(tmp_path), "add"] and "-A" in args:
+            return subprocess.CompletedProcess(args=args, returncode=0, stdout="", stderr="")
+        if args[:4] == ["git", "-C", str(tmp_path), "commit"] and "-m" in args:
+            return subprocess.CompletedProcess(args=args, returncode=0, stdout="commit ok", stderr="")
+        if args[:3] == ["git", "push", "-u"]:
+            return subprocess.CompletedProcess(args=args, returncode=0, stdout="pushed", stderr="")
+        if args[:2] == ["gh", "pr"]:
+            return subprocess.CompletedProcess(args=args, returncode=0, stdout="https://example.test/pr/1\n", stderr="")
+        return subprocess.CompletedProcess(args=args, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("automation.runner.orchestrator._workspace_has_changes", lambda ws: True)
+    monkeypatch.setattr("automation.runner.orchestrator.subprocess.run", fake_run)
+
+    result = _integrate_task(
+        tmp_path,
+        task,
+        tmp_path,
+        {"changed_files": ["sample.txt"], "checks": [{"command": "pytest", "status": "passed"}]},
+        {"auto_integrate": True},
+    )
+
+    assert result == {"branch": "auto/task-sample-task", "pr_url": "https://example.test/pr/1"}
+    assert any(call[0][:4] == ["git", "-C", str(tmp_path), "checkout"] and "-b" in call[0] for call in calls)
+    assert any(call[0][:4] == ["git", "-C", str(tmp_path), "commit"] for call in calls)
+    assert any(call[0][:3] == ["git", "push", "-u"] for call in calls)
+
+
+def test_integrate_task_error_handling(monkeypatch, tmp_path):
+    task = sample_task(tmp_path)
+    monkeypatch.setattr("automation.runner.orchestrator._workspace_has_changes", lambda ws: True)
+    monkeypatch.setattr(
+        "automation.runner.orchestrator.subprocess.run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("git exploded")),
+    )
+    result = _integrate_task(tmp_path, task, tmp_path, {}, {"auto_integrate": True})
+    assert "error" in result
+    assert "git exploded" in result["error"]

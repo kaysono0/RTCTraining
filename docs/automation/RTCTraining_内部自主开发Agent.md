@@ -58,10 +58,10 @@
 尚未实现：
 
 - Web Console。
-- 自动 git commit、push 或 merge。
 - 内置 provider SDK 直连。当前真实模型通过外部命令网关接入。
 
 当前 RTCTraining 已是 git 仓库，`mode=worktree` 可用。worktree 模式会在隔离工作区应用 patch 和运行测试，主工作区只保存任务状态与 artifacts，不直接承载代码修改。
+当 `runtime.json` 的 `auto_integrate` 打开时，`done` 的 low 风险任务会在对应 worktree 内自动创建 `auto/task-<task_id>` 分支、提交、推送并创建 PR；中高风险任务仍然先走审批门禁，不进入自动集成。
 
 ## 3. 运行命令
 

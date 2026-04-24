@@ -67,6 +67,49 @@ def _split_csv(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def clean_tasks(
+    root: Path,
+    *,
+    dry_run: bool = False,
+    keep_done: bool = False,
+    keep_blocked: bool = False,
+    remove_artifacts: bool = False,
+) -> list[Path]:
+    """Remove tasks from terminal states, returning paths that were cleaned.
+
+    By default, removes failed/blocked/done/running tasks. Options allow
+    preserving certain states. Does not touch ready tasks.
+    """
+    cleaned: list[Path] = []
+    states = {"failed", "running"}
+    if not keep_done:
+        states.add("done")
+    if not keep_blocked:
+        states.add("blocked")
+
+    for state in states:
+        state_dir = root / "automation/tasks" / state
+        if not state_dir.exists():
+            continue
+        for task_file in sorted(state_dir.glob("*.json")):
+            if dry_run:
+                cleaned.append(task_file)
+                continue
+            task_file.unlink()
+            cleaned.append(task_file)
+
+    if remove_artifacts and not dry_run:
+        artifacts_dir = root / "automation/artifacts"
+        if artifacts_dir.exists():
+            for subdir in artifacts_dir.iterdir():
+                if subdir.is_dir():
+                    for f in subdir.iterdir():
+                        if f.is_file() or f.is_symlink():
+                            f.unlink()
+
+    return cleaned
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Create and approve RTCTraining automation tasks")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -86,6 +129,16 @@ def main() -> int:
     approve.add_argument("task_id")
 
     replenish = subparsers.add_parser("replenish", help="Replenish ready tasks from the task supply catalog")
+
+    clean_parser = subparsers.add_parser("clean", help="Remove tasks from terminal states")
+    clean_parser.add_argument("--dry-run", action="store_true", help="Preview what would be cleaned")
+    clean_parser.add_argument("--keep-done", action="store_true", help="Preserve done tasks")
+    clean_parser.add_argument("--keep-blocked", action="store_true", help="Preserve blocked tasks")
+    clean_parser.add_argument("--remove-artifacts", action="store_true", help="Also remove artifact files")
+
+    reset = subparsers.add_parser("reset", help="Move failed or blocked tasks back to ready for retry")
+    reset.add_argument("--dry-run", action="store_true", help="Preview what would be reset")
+    reset.add_argument("task_id", nargs="?", help="Optional: reset only this specific task")
 
     args = parser.parse_args()
     root = Path(".")
@@ -112,6 +165,40 @@ def main() -> int:
         paths = replenish_tasks(root)
         for path in paths:
             print(path)
+        return 0
+    if args.command == "clean":
+        cleaned = clean_tasks(
+            root,
+            dry_run=args.dry_run,
+            keep_done=args.keep_done,
+            keep_blocked=args.keep_blocked,
+            remove_artifacts=args.remove_artifacts,
+        )
+        for path in cleaned:
+            rel = path.relative_to(root)
+            print(f"{'[DRY-RUN]' if args.dry_run else '[REMOVED]'} {rel}")
+        print(f"Total: {len(cleaned)} tasks {'(dry run)' if args.dry_run else 'removed'}")
+        return 0
+    if args.command == "reset":
+        sources = [root / "automation/tasks/failed", root / "automation/tasks/blocked"]
+        ready_dir = root / "automation/tasks/ready"
+        ready_dir.mkdir(parents=True, exist_ok=True)
+        count = 0
+        for source_dir in sources:
+            if not source_dir.exists():
+                continue
+            for task_file in sorted(source_dir.glob("*.json")):
+                if args.task_id and task_file.stem != args.task_id:
+                    continue
+                if args.dry_run:
+                    print(f"[DRY-RUN] Would reset: {task_file.relative_to(root)}")
+                    count += 1
+                    continue
+                target = ready_dir / task_file.name
+                task_file.rename(target)
+                print(f"[RESET] {task_file.relative_to(root)} → {target.relative_to(root)}")
+                count += 1
+        print(f"Total: {count} tasks reset {'(dry run)' if args.dry_run else ''}")
         return 0
     return 2
 

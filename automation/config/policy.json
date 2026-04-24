@@ -1,8 +1,22 @@
 {
   "allowed_command_prefixes": [
-    [".venv/bin/python", "-m", "pytest"],
-    ["git", "diff"],
-    ["git", "status"]
+    [
+      ".venv/bin/python",
+      "-m",
+      "pytest"
+    ],
+    [
+      "git",
+      "diff"
+    ],
+    [
+      "git",
+      "status"
+    ],
+    [
+      ".venv/bin/python",
+      "-c"
+    ]
   ],
   "global_forbidden_paths": [
     "data/**",

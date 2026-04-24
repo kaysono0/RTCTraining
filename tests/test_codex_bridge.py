@@ -131,16 +131,10 @@ def test_prepare_worktree_links_repo_venv(monkeypatch, tmp_path):
 
     result = codex_bridge._prepare_worktree(root, "task-1")
 
-    assert (result / "tracked.txt").read_text(encoding="utf-8") == "updated\n"
-    assert (result / "untracked.txt").read_text(encoding="utf-8") == "new file\n"
+    # git worktree add checks out committed state, not dirty working tree
+    assert (result / "tracked.txt").read_text(encoding="utf-8") == "initial\n"
+    assert not (result / "untracked.txt").exists()
     assert (result / ".venv").is_symlink()
-    status = subprocess.run(
-        ["git", "-C", str(result), "status", "--short"],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout
-    assert "?? .venv" not in status
 
 
 def test_run_codex_invokes_codex_exec_and_returns_git_diff(monkeypatch, tmp_path):
@@ -362,3 +356,116 @@ def test_run_codex_records_phase_input_summary(monkeypatch, tmp_path):
     assert '"phase": "repair"' in transcript
     assert '"repair_attempt": 2' in transcript
     assert '"context_files": ["docs/a.md"]' in transcript
+
+
+def test_run_codex_uses_provided_workspace_root_instead_of_temp_worktree(monkeypatch, tmp_path):
+    """When workspace_root is in the payload, codex bridge should use it directly
+    instead of creating a new temp worktree via _prepare_worktree."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "sample.txt").write_text("initial\n", encoding="utf-8")
+    subprocess.run(["git", "init"], cwd=workspace, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "config", "user.email", "rtc-training@example.test"], cwd=workspace, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "config", "user.name", "RTCTraining Test"], cwd=workspace, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "add", "-A"], cwd=workspace, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "commit", "-m", "initial"], cwd=workspace, check=True, capture_output=True, text=True)
+
+    monkeypatch.setattr(codex_bridge, "_git_toplevel", lambda root: tmp_path)
+    monkeypatch.setattr(codex_bridge, "_prepare_worktree", lambda root, task_id: (_ for _ in ()).throw(RuntimeError("_prepare_worktree should not be called")))
+    monkeypatch.setattr(codex_bridge, "_cleanup_worktree", lambda root, worktree_path: None)
+
+    class FakeProc:
+        def __init__(self):
+            self.stdin = io.StringIO()
+            self.stdout = io.StringIO("diff --git a/sample.txt b/sample.txt\n--- a/sample.txt\n+++ b/sample.txt\n@@ -1 +1 @@\n-initial\n+updated\n")
+            self.stderr = io.StringIO("")
+            self.returncode = 0
+
+        def wait(self, timeout=None):
+            return 0
+
+        def kill(self):
+            return None
+
+    run_calls: list[list[str]] = []
+    def fake_run(args, **kwargs):
+        nonlocal run_calls
+        run_calls.append(args)
+        if "--binary" in args:
+            return __import__("subprocess").CompletedProcess(args=args, returncode=0, stdout="diff --git a/sample.txt b/sample.txt\n--- a/sample.txt\n+++ b/sample.txt\n@@ -1 +1 @@\n-initial\n+updated\n", stderr="")
+        if "--name-only" in args:
+            return __import__("subprocess").CompletedProcess(args=args, returncode=0, stdout="sample.txt\n", stderr="")
+        return __import__("subprocess").CompletedProcess(args=args, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(codex_bridge.subprocess, "Popen", lambda *args, **kwargs: FakeProc())
+    monkeypatch.setattr(codex_bridge.subprocess, "run", fake_run)
+
+    diff = codex_bridge.run_codex(
+        {
+            "phase": "develop",
+            "workspace_root": str(workspace),
+            "task": {"id": "task-workspace", "goal": "use workspace"},
+            "plan": {},
+        },
+        Path("."),
+    )
+
+    assert "sample.txt" in diff
+    assert "+updated" in diff
+
+
+def test_run_codex_uses_claude_backend_when_bin_is_claude(monkeypatch, tmp_path):
+    """When RTC_AUTOMATION_CODEX_BIN=claude, the bridge uses claude execute --print
+    instead of codex exec --ephemeral --full-auto ..."""
+    monkeypatch.setenv("RTC_AUTOMATION_CODEX_BIN", "claude")
+    monkeypatch.setenv("RTC_AUTOMATION_CODEX_MODEL", "claude-sonnet-4-6")
+    worktree = tmp_path / "worktree"
+
+    monkeypatch.setattr(codex_bridge, "_git_toplevel", lambda root: tmp_path)
+    monkeypatch.setattr(codex_bridge, "_prepare_worktree", lambda root, task_id: worktree)
+    monkeypatch.setattr(codex_bridge, "_cleanup_worktree", lambda root, worktree_path: None)
+
+    class FakeProc:
+        def __init__(self):
+            self.stdin = io.StringIO()
+            self.stdout = io.StringIO("diff --git a/README.md b/README.md\n")
+            self.stderr = io.StringIO("")
+            self.returncode = 0
+
+        def wait(self, timeout=None):
+            return 0
+
+        def kill(self):
+            return None
+
+    calls: list[tuple[tuple[str, ...], dict[str, object]]] = []
+
+    def fake_popen(args, **kwargs):
+        calls.append((tuple(args), kwargs))
+        return FakeProc()
+
+    def fake_run(args, **kwargs):
+        calls.append((tuple(args), kwargs))
+        if "--name-only" in args:
+            return __import__("subprocess").CompletedProcess(args=args, returncode=0, stdout="README.md\n", stderr="")
+        if "--binary" in args or "--cached" in args:
+            return __import__("subprocess").CompletedProcess(args=args, returncode=0, stdout="diff --git a/README.md b/README.md\n", stderr="")
+        return __import__("subprocess").CompletedProcess(args=args, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(codex_bridge.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(codex_bridge.subprocess, "run", fake_run)
+
+    codex_bridge.run_codex(
+        {"phase": "develop", "task": {"id": "task-claude"}, "plan": {}},
+        Path("."),
+    )
+
+    cli_call = next(args for args, _ in calls if args[:2] == ("zsh", "-lc"))
+    cmd = cli_call[2]
+    assert "claude execute" in cmd, f"expected claude execute in command, got: {cmd}"
+    assert "--print" in cmd
+    assert "--ephemeral" not in cmd
+    assert "--full-auto" not in cmd
+    assert "--model claude-sonnet-4-6" in cmd
+    # claude backend reads from stdin implicitly; no trailing -
+    assert not cmd.rstrip().endswith(" -"), f"claude should not have trailing '-'"

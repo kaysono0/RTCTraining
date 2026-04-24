@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from automation.runner.task_supply import TaskSupplyManager
+from automation.runner.task_cli import clean_tasks
 
 
 def write_json(path: Path, payload: dict) -> None:
@@ -187,3 +188,108 @@ def test_repo_task_supply_catalog_is_valid():
         assert recipe["mode"] == "worktree"
         assert recipe["risk_level"] == "low"
         assert recipe["max_instances"] == 1
+
+
+def test_clean_tasks_removes_failed_and_done_but_not_ready(tmp_path):
+    (tmp_path / "automation/tasks/ready").mkdir(parents=True)
+    (tmp_path / "automation/tasks/failed").mkdir(parents=True)
+    (tmp_path / "automation/tasks/done").mkdir(parents=True)
+    (tmp_path / "automation/tasks/blocked").mkdir(parents=True)
+    (tmp_path / "automation/tasks/running").mkdir(parents=True)
+    for state in ("ready", "failed", "done", "blocked", "running"):
+        (tmp_path / "automation/tasks" / state / f"{state}-task.json").write_text(
+            json.dumps({"id": f"{state}-task"}), encoding="utf-8"
+        )
+
+    cleaned = clean_tasks(tmp_path)
+
+    assert (tmp_path / "automation/tasks/ready/ready-task.json").exists()
+    assert not (tmp_path / "automation/tasks/failed/failed-task.json").exists()
+    assert not (tmp_path / "automation/tasks/done/done-task.json").exists()
+    assert not (tmp_path / "automation/tasks/blocked/blocked-task.json").exists()
+    assert not (tmp_path / "automation/tasks/running/running-task.json").exists()
+    assert len(cleaned) == 4
+
+
+def test_clean_tasks_keep_done_preserves_done_tasks(tmp_path):
+    (tmp_path / "automation/tasks/failed").mkdir(parents=True)
+    (tmp_path / "automation/tasks/done").mkdir(parents=True)
+    for state in ("failed", "done"):
+        (tmp_path / "automation/tasks" / state / f"{state}-task.json").write_text(
+            json.dumps({"id": f"{state}-task"}), encoding="utf-8"
+        )
+
+    cleaned = clean_tasks(tmp_path, keep_done=True)
+
+    assert (tmp_path / "automation/tasks/done/done-task.json").exists()
+    assert not (tmp_path / "automation/tasks/failed/failed-task.json").exists()
+    assert len(cleaned) == 1
+
+
+def test_clean_tasks_keep_blocked_preserves_blocked_tasks(tmp_path):
+    (tmp_path / "automation/tasks/blocked").mkdir(parents=True)
+    (tmp_path / "automation/tasks/failed").mkdir(parents=True)
+    (tmp_path / "automation/tasks/done").mkdir(parents=True)
+    for state in ("blocked", "failed", "done"):
+        (tmp_path / "automation/tasks" / state / f"{state}-task.json").write_text(
+            json.dumps({"id": f"{state}-task"}), encoding="utf-8"
+        )
+
+    cleaned = clean_tasks(tmp_path, keep_blocked=True)
+
+    assert (tmp_path / "automation/tasks/blocked/blocked-task.json").exists()
+    assert not (tmp_path / "automation/tasks/failed/failed-task.json").exists()
+    assert not (tmp_path / "automation/tasks/done/done-task.json").exists()
+
+
+def test_clean_tasks_dry_run_does_not_remove(tmp_path):
+    (tmp_path / "automation/tasks/failed").mkdir(parents=True)
+    (tmp_path / "automation/tasks/failed/failed-task.json").write_text(
+        json.dumps({"id": "failed-task"}), encoding="utf-8"
+    )
+
+    cleaned = clean_tasks(tmp_path, dry_run=True)
+
+    assert (tmp_path / "automation/tasks/failed/failed-task.json").exists()
+    assert len(cleaned) == 1
+
+
+def test_reset_via_cli_moves_failed_tasks_to_ready(tmp_path):
+    (tmp_path / "automation/tasks/failed").mkdir(parents=True)
+    (tmp_path / "automation/tasks/ready").mkdir(parents=True)
+    (tmp_path / "automation/tasks/failed/reset-me.json").write_text(
+        json.dumps({"id": "reset-me"}), encoding="utf-8"
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-m", "automation.runner.task_cli", "reset"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONPATH": str(REPO_ROOT)},
+    )
+
+    assert "[RESET]" in result.stdout
+    assert not (tmp_path / "automation/tasks/failed/reset-me.json").exists()
+    assert (tmp_path / "automation/tasks/ready/reset-me.json").exists()
+
+
+def test_clean_via_cli_removes_failed_tasks(tmp_path):
+    (tmp_path / "automation/tasks/failed").mkdir(parents=True)
+    (tmp_path / "automation/tasks/ready").mkdir(parents=True)
+    (tmp_path / "automation/tasks/failed/clean-me.json").write_text(
+        json.dumps({"id": "clean-me"}), encoding="utf-8"
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-m", "automation.runner.task_cli", "clean"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONPATH": str(REPO_ROOT)},
+    )
+
+    assert "[REMOVED]" in result.stdout
+    assert not (tmp_path / "automation/tasks/failed/clean-me.json").exists()

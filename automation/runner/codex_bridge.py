@@ -252,21 +252,6 @@ def _git_toplevel(root: Path) -> Path:
     return Path(result.stdout.strip())
 
 
-def _copy_snapshot(root: Path, snapshot_root: Path) -> None:
-    def ignore(directory: str, names: list[str]) -> set[str]:
-        rel = Path(directory).resolve().relative_to(root)
-        ignored: set[str] = set()
-        if rel == Path("."):
-            ignored.update({".git", ".venv", ".pytest_cache"})
-        if rel == Path("automation"):
-            ignored.add("artifacts")
-        if rel == Path(".automation"):
-            ignored.add("worktrees")
-        return ignored
-
-    shutil.copytree(root, snapshot_root, dirs_exist_ok=True, symlinks=True, ignore=ignore)
-
-
 def _link_venv(root: Path, snapshot_root: Path) -> None:
     venv = root / ".venv"
     if not venv.exists():
@@ -276,40 +261,16 @@ def _link_venv(root: Path, snapshot_root: Path) -> None:
         link.symlink_to(venv, target_is_directory=True)
 
 
-def _initialize_git_repo(snapshot_root: Path, task_id: str) -> None:
-    subprocess.run(["git", "init"], cwd=snapshot_root, check=True, capture_output=True, text=True)
-    subprocess.run(
-        ["git", "config", "user.email", "rtc-training@example.test"],
-        cwd=snapshot_root,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "RTCTraining Snapshot"],
-        cwd=snapshot_root,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    exclude = snapshot_root / ".git" / "info" / "exclude"
-    exclude.parent.mkdir(parents=True, exist_ok=True)
-    exclude.write_text(".venv\n", encoding="utf-8")
-    subprocess.run(["git", "add", "-A"], cwd=snapshot_root, check=True, capture_output=True, text=True)
-    subprocess.run(
-        ["git", "commit", "-m", f"snapshot {task_id}"],
-        cwd=snapshot_root,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-
-
 def _prepare_worktree(root: Path, task_id: str) -> Path:
     tempdir = Path(tempfile.mkdtemp(prefix="rtc-codex-"))
-    _copy_snapshot(root, tempdir)
+    subprocess.run(
+        ["git", "worktree", "add", "--detach", str(tempdir)],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
     _link_venv(root, tempdir)
-    _initialize_git_repo(tempdir, task_id)
     subprocess.run(
         ["git", "-C", str(tempdir), "status", "--short"],
         check=False,
@@ -320,24 +281,52 @@ def _prepare_worktree(root: Path, task_id: str) -> Path:
 
 
 def _cleanup_worktree(root: Path, worktree: Path) -> None:
+    subprocess.run(
+        ["git", "worktree", "remove", "--force", str(worktree)],
+        cwd=root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
     shutil.rmtree(worktree, ignore_errors=True)
 
 
-def _codex_exec_command() -> list[str]:
-    command = os.environ.get("RTC_AUTOMATION_CODEX_BIN", "codex")
-    args = [command, "exec", "--ephemeral", "--full-auto", "--ignore-user-config", "--skip-git-repo-check"]
+def _cli_binary() -> str:
+    return os.environ.get("RTC_AUTOMATION_CODEX_BIN", "claude")
+
+
+def _cli_backend() -> str:
+    bin_name = os.path.basename(_cli_binary())
+    return "claude" if bin_name == "claude" else "codex"
+
+
+def _exec_command() -> list[str]:
+    command = _cli_binary()
+    backend = _cli_backend()
+    args: list[str] = [command]
+    if backend == "claude":
+        args.extend(["execute", "--print"])
+    else:
+        args.extend(["exec", "--ephemeral", "--full-auto", "--ignore-user-config", "--skip-git-repo-check"])
     model = os.environ.get("RTC_AUTOMATION_CODEX_MODEL", "").strip()
     if model:
         args.extend(["--model", model])
-    profile = os.environ.get("RTC_AUTOMATION_CODEX_PROFILE", "").strip()
-    if profile:
-        args.extend(["--profile", profile])
+    if backend != "claude":
+        profile = os.environ.get("RTC_AUTOMATION_CODEX_PROFILE", "").strip()
+        if profile:
+            args.extend(["--profile", profile])
     return args
 
 
-def _codex_command() -> list[str]:
-    command = "source ~/.zshrc && " + shlex.join(_codex_exec_command()) + " -"
+def _cli_command() -> list[str]:
+    command = "source ~/.zshrc && " + shlex.join(_exec_command())
+    if _cli_backend() != "claude":
+        command += " -"
     return ["zsh", "-lc", command]
+
+
+def _cli_label() -> str:
+    return f"{_cli_backend()} exec"
 
 
 def _codex_timeout_seconds() -> int:
@@ -352,7 +341,17 @@ def _codex_timeout_seconds() -> int:
 def run_codex(payload: dict[str, Any], root: Path | None = None) -> str:
     repo_root = _git_toplevel(root or Path.cwd())
     task_id = str(payload.get("task", {}).get("id", "unknown-task"))
-    worktree = _prepare_worktree(repo_root, task_id)
+    workspace_root_str = payload.get("workspace_root")
+    if workspace_root_str:
+        worktree = Path(workspace_root_str)
+        if not (worktree / ".git").exists():
+            raise RuntimeError(f"workspace_root is not a git repository: {worktree}")
+        subprocess.run(
+            ["git", "-C", str(worktree), "status", "--short"],
+            check=False, capture_output=True, text=True,
+        )
+    else:
+        worktree = _prepare_worktree(repo_root, task_id)
     worktree_path = worktree
     try:
         prompt = build_prompt(payload)
@@ -361,7 +360,7 @@ def run_codex(payload: dict[str, Any], root: Path | None = None) -> str:
             task_id,
             {
                 "type": "codex_exec_start",
-                "command": _codex_command(),
+                "command": _cli_command(),
                 "cwd": str(worktree),
                 "phase": str(payload.get("phase", "develop")),
                 "input_summary": _request_summary(payload),
@@ -369,7 +368,7 @@ def run_codex(payload: dict[str, Any], root: Path | None = None) -> str:
         )
         try:
             proc = subprocess.Popen(
-                _codex_command(),
+                _cli_command(),
                 cwd=worktree,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
@@ -385,7 +384,7 @@ def run_codex(payload: dict[str, Any], root: Path | None = None) -> str:
                 task_id,
                 {
                     "type": "codex_exec_error",
-                    "command": _codex_command(),
+                    "command": _cli_command(),
                     "cwd": str(worktree),
                     "error": repr(exc),
                 },
@@ -446,7 +445,7 @@ def run_codex(payload: dict[str, Any], root: Path | None = None) -> str:
                 task_id,
                 {
                     "type": "codex_exec_timeout",
-                    "command": _codex_command(),
+                    "command": _cli_command(),
                     "cwd": str(worktree),
                     "timeout_seconds": _codex_timeout_seconds(),
                     "stdout": completed_stdout,
@@ -456,13 +455,13 @@ def run_codex(payload: dict[str, Any], root: Path | None = None) -> str:
                     "codex_output_has_patch": _looks_like_patch(completed_stdout + completed_stderr),
                 },
             )
-            raise RuntimeError(f"codex exec timed out after {_codex_timeout_seconds()} seconds") from exc
+            raise RuntimeError(f"{_cli_label()} timed out after {_codex_timeout_seconds()} seconds") from exc
         stdout_thread.join()
         stderr_thread.join()
         completed_stdout = "".join(stdout_chunks)
         completed_stderr = "".join(stderr_chunks)
         result = subprocess.CompletedProcess(
-            args=_codex_command() + ["-"],
+            args=_cli_command(),
             returncode=returncode,
             stdout=completed_stdout,
             stderr=completed_stderr,
@@ -472,7 +471,7 @@ def run_codex(payload: dict[str, Any], root: Path | None = None) -> str:
             task_id,
             {
                 "type": "codex_exec_finish",
-                "command": _codex_command(),
+                "command": _cli_command(),
                 "cwd": str(worktree),
                 "returncode": result.returncode,
                 "stdout": result.stdout,
@@ -481,8 +480,9 @@ def run_codex(payload: dict[str, Any], root: Path | None = None) -> str:
                 "stderr_bytes": len(result.stderr.encode("utf-8")),
             },
         )
+        cli = _cli_label()
         if result.returncode != 0:
-            raise RuntimeError(f"codex exec failed with exit code {result.returncode}: {result.stderr.strip()}")
+            raise RuntimeError(f"{cli} failed with exit code {result.returncode}: {result.stderr.strip()}")
         subprocess.run(
             ["git", "-C", worktree_path, "add", "-A"],
             check=True,
@@ -538,7 +538,7 @@ def run_codex(payload: dict[str, Any], root: Path | None = None) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Bridge RTCTraining model requests to codex exec")
+    parser = argparse.ArgumentParser(description=f"Bridge RTCTraining model requests to {_cli_label()}")
     parser.add_argument("--root", default=".", help="Repository root, defaults to the current directory")
     args = parser.parse_args()
     payload = json.load(sys.stdin)

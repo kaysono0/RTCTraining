@@ -74,7 +74,8 @@ class StubModelGateway:
         )
         return plan
 
-    def develop(self, task: dict[str, Any], plan: dict[str, Any]) -> str:
+    def develop(self, task: dict[str, Any], plan: dict[str, Any], *, workspace_root: str | None = None) -> str:
+        _ = workspace_root
         patch = str(task.get("stub_patch", ""))
         self.artifacts.append_transcript(
             str(task["id"]),
@@ -88,7 +89,10 @@ class StubModelGateway:
         plan: dict[str, Any],
         failed_checks: list[dict[str, Any]],
         attempt: int,
+        *,
+        workspace_root: str | None = None,
     ) -> str:
+        _ = workspace_root
         patches = task.get("stub_repair_patches", [])
         patch = ""
         if isinstance(patches, list) and attempt - 1 < len(patches):
@@ -138,8 +142,11 @@ class CommandModelGateway:
         )
         return plan
 
-    def develop(self, task: dict[str, Any], plan: dict[str, Any]) -> str:
-        patch = self._run({"phase": "develop", "task": task, "plan": plan})
+    def develop(self, task: dict[str, Any], plan: dict[str, Any], *, workspace_root: str | None = None) -> str:
+        payload: dict[str, Any] = {"phase": "develop", "task": task, "plan": plan}
+        if workspace_root is not None:
+            payload["workspace_root"] = workspace_root
+        patch = self._run(payload)
         self.artifacts.append_transcript(
             str(task["id"]),
             {"type": "develop", "backend": "command", "patch_bytes": len(patch.encode("utf-8"))},
@@ -152,16 +159,19 @@ class CommandModelGateway:
         plan: dict[str, Any],
         failed_checks: list[dict[str, Any]],
         attempt: int,
+        *,
+        workspace_root: str | None = None,
     ) -> str:
-        patch = self._run(
-            {
-                "phase": "repair",
-                "attempt": attempt,
-                "task": task,
-                "plan": plan,
-                "failed_checks": failed_checks,
-            }
-        )
+        payload: dict[str, Any] = {
+            "phase": "repair",
+            "attempt": attempt,
+            "task": task,
+            "plan": plan,
+            "failed_checks": failed_checks,
+        }
+        if workspace_root is not None:
+            payload["workspace_root"] = workspace_root
+        patch = self._run(payload)
         self.artifacts.append_transcript(
             str(task["id"]),
             {
