@@ -22,6 +22,29 @@
           <input id="webrtcOriginInput" value="https://localhost:8080">
           <p id="roomSummary">0 rooms</p>
         </article>
+        <article class="status-panel stats-panel">
+          <h2>Live Stats</h2>
+          <label for="statsRoomInput">Room ID</label>
+          <input id="statsRoomInput" value="room1">
+          <p id="statsState">stats_unchecked</p>
+          <ul id="peerPairList"></ul>
+          <dl id="latestStatsPanel"></dl>
+          <table id="statsHistoryTable">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Peer</th>
+                <th>Remote</th>
+                <th>RTT</th>
+                <th>Loss</th>
+                <th>Jitter</th>
+                <th>Bitrate</th>
+                <th>FPS</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </article>
         <article class="status-panel">
           <h2>CSV Analysis</h2>
           <p id="csvState">csv_waiting</p>
@@ -31,76 +54,8 @@
     <script src="/static/dashboard/dashboard.js"></script>
     <script>
       (function () {
-        if (window.__RTCTrainingDashboardTestHooks) {
-          return;
-        }
-
-        function queryParam(name) {
-          return new URLSearchParams(window.location.search).get(name);
-        }
-
-        function setText(id, text) {
-          const element = document.getElementById(id);
-          if (element) {
-            element.textContent = text;
-          }
-        }
-
-        function roomCountLabel(rooms) {
-          const count = Object.keys(rooms || {}).length;
-          return `${count} ${count === 1 ? "room" : "rooms"}`;
-        }
-
-        async function checkService() {
-          const input = document.getElementById("webrtcOriginInput");
-          const origin = input.value.trim();
-          setText("serviceState", "service_checking");
-
-          const response = await fetch(`/api/webrtc/members?origin=${encodeURIComponent(origin)}`);
-          const payload = await response.json();
-          if (!payload.ok) {
-            setText("serviceState", payload.error.code);
-            setText("roomSummary", "0 rooms");
-            return payload;
-          }
-
-          setText("serviceState", "service_online");
-          setText("roomSummary", roomCountLabel(payload.data.rooms));
-          return payload;
-        }
-
-        function bootstrapDashboard() {
-          const input = document.getElementById("webrtcOriginInput");
-          const origin = queryParam("webrtc_origin");
-          if (origin && input) {
-            input.value = origin;
-          }
-
-          document.getElementById("checkServiceButton").addEventListener("click", () => {
-            checkService().catch((error) => {
-              setText("serviceState", "service_error");
-              setText("roomSummary", error.message);
-            });
-          });
-
-          window.__RTCTrainingDashboardInlineBootstrap = true;
-          window.__RTCTrainingDashboardTestHooks = {
-            checkService,
-            getServiceState() {
-              return document.getElementById("serviceState").textContent;
-            },
-            getRoomSummary() {
-              return document.getElementById("roomSummary").textContent;
-            }
-          };
-
-          checkService().catch((error) => {
-            setText("serviceState", "service_error");
-            setText("roomSummary", error.message);
-          });
-        }
-
-        bootstrapDashboard();
+        window.__RTCTrainingDashboardInlineBootstrap = true;
+        window.__RTCTrainingDashboardInlineServiceCheckPath = "/api/webrtc/members?origin=";
       })();
     </script>
   </body>

@@ -29,5 +29,6 @@ def create_webrtc_app(room_store=None, stats_store=None):
     app.router.add_get("/stats", stats_handlers.get_latest)
     app.router.add_get("/stats/history", stats_handlers.get_history)
     app.router.add_get("/stats/peers", stats_handlers.get_peers)
+    app.router.add_get("/stats/export.csv", stats_handlers.export_csv)
     app.router.add_post("/clear_stats", stats_handlers.clear_stats)
     return app

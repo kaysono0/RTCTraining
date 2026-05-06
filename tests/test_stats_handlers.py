@@ -113,3 +113,21 @@ async def test_clear_stats_removes_room_history(client):
     assert await cleared.json() == {"ok": True, "data": {"removed": 1}}
     assert await room1.json() == {"ok": True, "data": {"samples": []}}
     assert len((await room2.json())["data"]["samples"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_stats_export_csv_returns_room_scoped_history(client):
+    await client.post("/stats", json=stats_payload(room_id="room1"))
+    await client.post("/stats", json=stats_payload(room_id="room2"))
+
+    response = await client.get("/stats/export.csv?room_id=room1")
+    body = await response.text()
+
+    assert response.status == 200
+    assert response.headers["Content-Type"].startswith("text/csv")
+    assert body.splitlines()[0] == (
+        "sample_index,timestamp,room_id,test_session_id,peer_id,remote_peer_id,"
+        "rtt_ms,packets_lost,jitter_ms,bitrate_kbps,fps,frame_width,frame_height,codec"
+    )
+    assert ",room1," in body
+    assert ",room2," not in body

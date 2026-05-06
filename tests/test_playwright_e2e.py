@@ -202,10 +202,21 @@ def test_two_webrtc_pages_connect_and_render_remote_video(
     for page in (alice, bob):
         expect(page.locator("#connectionState")).to_have_text("connected", timeout=10000)
         expect(page.locator("#remoteVideos video")).to_have_count(1, timeout=10000)
+        expect(page.locator("#remoteVideos .remote-tile")).to_have_count(1, timeout=10000)
+        expect(page.locator("#remoteVideos")).to_have_class("remote-video-grid grid-1")
         page.wait_for_function(
             "window.__RTCTrainingTestHooks.getConnectedPeerCount() === 1",
             timeout=10000,
         )
+
+    expect(alice.locator("#remoteVideos .remote-name")).to_contain_text("Bob", timeout=10000)
+    expect(bob.locator("#remoteVideos .remote-name")).to_contain_text("Alice", timeout=10000)
+    expect(alice.locator("#timeline li").first).to_contain_text("[")
+    expect(alice.locator("#timeline")).to_contain_text("from")
+    expect(alice.locator("#timeline")).to_contain_text("to")
+    expect(alice.locator("#timeline")).to_contain_text("from: Bob (peer-")
+    expect(bob.locator("#timeline")).to_contain_text("from: Alice (peer-")
+    expect(alice.locator("#timeline details")).not_to_have_count(0)
 
     alice_timeline = alice.evaluate(
         "window.__RTCTrainingTestHooks.getTimeline().map((event) => event.type)"
@@ -217,6 +228,54 @@ def test_two_webrtc_pages_connect_and_render_remote_video(
     assert "sent_answer" in alice_timeline
     assert "sent_offer" in bob_timeline
     assert "received_answer" in bob_timeline
+
+
+def test_three_webrtc_pages_form_minimal_mesh(
+    browser_context,
+    webrtc_https_server,
+):
+    room_id = "mesh-room"
+    alice = browser_context.new_page()
+    bob = browser_context.new_page()
+    charlie = browser_context.new_page()
+    pages = ((alice, "Alice"), (bob, "Bob"), (charlie, "Charlie"))
+
+    for page, display_name in pages:
+        page.goto(webrtc_https_server)
+        page.get_by_role("button", name="Start Media").click()
+        expect(page.locator("#connectionState")).to_have_text("media_ready")
+        page.fill("#roomIdInput", room_id)
+        page.fill("#displayNameInput", display_name)
+
+    for page, _display_name in pages:
+        page.get_by_role("button", name="Join").click()
+
+    peer_ids = {
+        page: page.evaluate("window.__RTCTrainingTestHooks.getClientId()")
+        for page, _display_name in pages
+    }
+
+    for page, _display_name in pages:
+        expected_remote_peer_ids = sorted(
+            peer_id
+            for candidate_page, peer_id in peer_ids.items()
+            if candidate_page is not page
+        )
+        expect(page.locator("#connectionState")).to_have_text("connected", timeout=15000)
+        expect(page.locator("#remoteVideos video")).to_have_count(2, timeout=15000)
+        expect(page.locator("#remoteVideos .remote-tile")).to_have_count(2, timeout=15000)
+        expect(page.locator("#remoteVideos")).to_have_class("remote-video-grid grid-2")
+        page.wait_for_function(
+            """
+            (expectedRemotePeerIds) => {
+              const connectedPeerIds = window.__RTCTrainingTestHooks.getConnectedPeerIds();
+              return JSON.stringify(connectedPeerIds.sort()) ===
+                JSON.stringify(expectedRemotePeerIds);
+            }
+            """,
+            arg=expected_remote_peer_ids,
+            timeout=15000,
+        )
 
 
 def test_connected_webrtc_pages_upload_stats_visible_to_dashboard(
@@ -254,6 +313,9 @@ def test_connected_webrtc_pages_upload_stats_visible_to_dashboard(
         arg=room_id,
         timeout=10000,
     )
+    expect(alice.locator("#remoteVideos .remote-stats")).to_contain_text("Bitrate", timeout=10000)
+    expect(alice.locator("#remoteVideos .remote-stats")).to_contain_text("Resolution", timeout=10000)
+    expect(alice.locator("#remoteVideos .remote-stats")).to_contain_text("Lost", timeout=10000)
 
     dashboard_query = urlencode({"origin": webrtc_https_server, "room_id": room_id})
     with urlopen(f"{dashboard_server}/api/webrtc/stats/peers?{dashboard_query}", timeout=3) as response:
@@ -268,3 +330,42 @@ def test_connected_webrtc_pages_upload_stats_visible_to_dashboard(
         (alice.evaluate("window.__RTCTrainingTestHooks.getClientId()"), bob.evaluate("window.__RTCTrainingTestHooks.getClientId()")),
         (bob.evaluate("window.__RTCTrainingTestHooks.getClientId()"), alice.evaluate("window.__RTCTrainingTestHooks.getClientId()")),
     }
+
+
+def test_dashboard_renders_live_stats_after_two_pages_connect(
+    browser_context,
+    dashboard_server,
+    webrtc_https_server,
+):
+    room_id = "dashboard-live-stats"
+    alice = browser_context.new_page()
+    bob = browser_context.new_page()
+    dashboard = browser_context.new_page()
+
+    alice.goto(webrtc_https_server)
+    bob.goto(webrtc_https_server)
+
+    for page, display_name in ((alice, "Alice"), (bob, "Bob")):
+        page.get_by_role("button", name="Start Media").click()
+        expect(page.locator("#connectionState")).to_have_text("media_ready")
+        page.fill("#roomIdInput", room_id)
+        page.fill("#displayNameInput", display_name)
+
+    alice.get_by_role("button", name="Join").click()
+    bob.get_by_role("button", name="Join").click()
+
+    for page in (alice, bob):
+        expect(page.locator("#connectionState")).to_have_text("connected", timeout=10000)
+
+    dashboard.goto(
+        f"{dashboard_server}/?webrtc_origin={webrtc_https_server}&room_id={room_id}"
+    )
+
+    expect(dashboard.locator("#statsState")).to_have_text("stats_online", timeout=10000)
+    expect(dashboard.locator("#peerPairList li")).to_have_count(2, timeout=10000)
+    expect(dashboard.locator("#latestStatsPanel")).to_contain_text("RTT")
+    expect(dashboard.locator("#statsHistoryTable tbody tr")).not_to_have_count(0)
+    dashboard.wait_for_function(
+        "document.querySelectorAll('#statsHistoryTable tbody tr').length > 2",
+        timeout=10000,
+    )

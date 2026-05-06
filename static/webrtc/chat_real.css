@@ -54,12 +54,144 @@ body {
   padding: 16px;
 }
 
-video,
-#remoteVideos {
+video {
   aspect-ratio: 16 / 9;
   background: #101828;
   display: block;
   width: 100%;
+}
+
+.remote-video-grid {
+  aspect-ratio: 16 / 9;
+  background: #101828;
+  display: grid;
+  gap: 6px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.remote-video-grid.grid-0 {
+  grid-template-columns: 1fr;
+}
+
+.remote-video-grid.grid-1 {
+  grid-template-columns: 1fr;
+}
+
+.remote-video-grid.grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.remote-video-grid.grid-4 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.remote-video-grid.grid-9 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.remote-tile {
+  background: #101828;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.remote-tile video {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.remote-identity,
+.remote-stats {
+  background: rgba(15, 23, 42, 0.72);
+  color: #ffffff;
+  left: 8px;
+  max-width: calc(100% - 16px);
+  position: absolute;
+}
+
+.remote-identity {
+  border-radius: 6px;
+  display: grid;
+  gap: 2px;
+  padding: 6px 8px;
+  top: 8px;
+}
+
+.remote-name {
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.remote-peer-id {
+  color: #cbd5e1;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.remote-stats {
+  border-radius: 6px;
+  bottom: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 11px;
+  gap: 4px 8px;
+  line-height: 1.25;
+  padding: 6px 8px;
+}
+
+.timeline-panel ol {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 24px;
+}
+
+.timeline-item {
+  line-height: 1.35;
+}
+
+.timeline-header {
+  font-weight: 700;
+}
+
+.timeline-meta {
+  color: #475569;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  gap: 4px 12px;
+  margin-top: 2px;
+}
+
+.timeline-field {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.timeline-item details {
+  margin-top: 4px;
+}
+
+.timeline-item summary {
+  color: #334155;
+  cursor: pointer;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.timeline-item pre {
+  background: #0f172a;
+  border-radius: 6px;
+  color: #e2e8f0;
+  font-size: 12px;
+  max-height: 220px;
+  overflow: auto;
+  padding: 10px;
+  white-space: pre-wrap;
 }
 
 .timeline-panel {

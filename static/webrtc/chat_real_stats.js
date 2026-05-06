@@ -108,6 +108,9 @@
     }
     shared.state.latestStats[sample.remote_peer_id] = payload.data.sample;
     shared.state.statsUploadedCount += 1;
+    if (window.RTCTrainingSession && window.RTCTrainingSession.renderRemotePeerStats) {
+      window.RTCTrainingSession.renderRemotePeerStats(sample.remote_peer_id);
+    }
     return payload.data.sample;
   }
 

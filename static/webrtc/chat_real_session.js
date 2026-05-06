@@ -28,23 +28,162 @@
     }
   }
 
-  function ensureRemoteVideo(remotePeerId, stream) {
-    shared.state.remoteStreams[remotePeerId] = stream;
+  function remotePeerLabel(remotePeerId) {
+    const peer = shared.state.peers[remotePeerId];
+    if (peer && peer.display_name) {
+      return peer.display_name;
+    }
+    return remotePeerId;
+  }
+
+  function shortPeerId(peerId) {
+    if (!peerId) {
+      return "";
+    }
+    return peerId.length > 12 ? `${peerId.slice(0, 12)}...` : peerId;
+  }
+
+  function setRemoteGridClass() {
     const container = document.getElementById("remoteVideos");
     if (!container) {
       return;
     }
-    let video = document.getElementById(`remoteVideo-${remotePeerId}`);
-    if (!video) {
-      video = document.createElement("video");
-      video.id = `remoteVideo-${remotePeerId}`;
-      video.autoplay = true;
-      video.playsInline = true;
-      container.appendChild(video);
+    const count = container.querySelectorAll(".remote-tile").length;
+    let gridClass = "grid-0";
+    if (count === 1) {
+      gridClass = "grid-1";
+    } else if (count === 2) {
+      gridClass = "grid-2";
+    } else if (count <= 4) {
+      gridClass = "grid-4";
+    } else {
+      gridClass = "grid-9";
     }
+    container.className = `remote-video-grid ${gridClass}`;
+  }
+
+  function formatNumber(value, digits) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      return "--";
+    }
+    return value.toFixed(digits);
+  }
+
+  function renderRemotePeerStats(remotePeerId) {
+    const tile = document.getElementById(`remoteTile-${remotePeerId}`);
+    if (!tile) {
+      return;
+    }
+    const sample = shared.state.latestStats[remotePeerId];
+    const metrics = sample && sample.metrics ? sample.metrics : {};
+    const resolution = metrics.frame_width && metrics.frame_height
+      ? `${metrics.frame_width}x${metrics.frame_height}`
+      : "--";
+    const stats = tile.querySelector(".remote-stats");
+    if (!stats) {
+      return;
+    }
+    stats.innerHTML = "";
+    const rows = [
+      ["Bitrate", `${formatNumber(metrics.bitrate_kbps, 1)} kbps`],
+      ["Resolution", resolution],
+      ["FPS", formatNumber(metrics.fps, 1)],
+      ["Lost", metrics.packets_lost ?? "--"],
+      ["RTT", `${formatNumber(metrics.rtt_ms, 1)} ms`],
+      ["ICE", metrics.ice_connection_state || "--"]
+    ];
+    for (const [label, value] of rows) {
+      const item = document.createElement("span");
+      item.textContent = `${label}: ${value}`;
+      stats.appendChild(item);
+    }
+  }
+
+  function ensureRemoteTile(remotePeerId) {
+    const container = document.getElementById("remoteVideos");
+    if (!container) {
+      return null;
+    }
+    let tile = document.getElementById(`remoteTile-${remotePeerId}`);
+    if (tile) {
+      const name = tile.querySelector(".remote-name");
+      const peerId = tile.querySelector(".remote-peer-id");
+      if (name) {
+        name.textContent = remotePeerLabel(remotePeerId);
+      }
+      if (peerId) {
+        peerId.textContent = shortPeerId(remotePeerId);
+      }
+      renderRemotePeerStats(remotePeerId);
+      return tile;
+    }
+
+    tile = document.createElement("div");
+    tile.id = `remoteTile-${remotePeerId}`;
+    tile.className = "remote-tile";
+    tile.dataset.peerId = remotePeerId;
+
+    const video = document.createElement("video");
+    video.id = `remoteVideo-${remotePeerId}`;
+    video.autoplay = true;
+    video.playsInline = true;
+    tile.appendChild(video);
+
+    const identity = document.createElement("div");
+    identity.className = "remote-identity";
+    const name = document.createElement("strong");
+    name.className = "remote-name";
+    name.textContent = remotePeerLabel(remotePeerId);
+    const peerId = document.createElement("span");
+    peerId.className = "remote-peer-id";
+    peerId.textContent = shortPeerId(remotePeerId);
+    identity.appendChild(name);
+    identity.appendChild(peerId);
+    tile.appendChild(identity);
+
+    const stats = document.createElement("div");
+    stats.className = "remote-stats";
+    tile.appendChild(stats);
+
+    container.appendChild(tile);
+    setRemoteGridClass();
+    renderRemotePeerStats(remotePeerId);
+    return tile;
+  }
+
+  function refreshRemotePeerTile(remotePeerId) {
+    ensureRemoteTile(remotePeerId);
+  }
+
+  function ensureRemoteVideo(remotePeerId, stream) {
+    shared.state.remoteStreams[remotePeerId] = stream;
+    const tile = ensureRemoteTile(remotePeerId);
+    if (!tile) {
+      return;
+    }
+    const video = tile.querySelector("video");
     if (video.srcObject !== stream) {
       video.srcObject = stream;
     }
+  }
+
+  function summarizeSessionDescription(description) {
+    const sdp = description && description.sdp ? description.sdp : "";
+    const mediaLines = sdp.split("\n").filter((line) => line.startsWith("m=")).length;
+    const hasIceUfrag = sdp.includes("a=ice-ufrag:");
+    return {
+      payload_preview: `${description.type} sdp_len=${sdp.length} m_lines=${mediaLines} ice_ufrag=${hasIceUfrag}`,
+      payload_full: JSON.stringify(description, null, 2)
+    };
+  }
+
+  function summarizeCandidate(candidate) {
+    const raw = candidate && candidate.candidate ? candidate.candidate : "";
+    const parts = raw.split(" ");
+    return {
+      payload_preview: `candidate ${parts[7] || ""} ${parts[4] || ""}:${parts[5] || ""}`.trim(),
+      payload_full: JSON.stringify(candidate, null, 2)
+    };
   }
 
   async function sendSignal(remotePeerId, type, payload) {
@@ -82,10 +221,16 @@
       }
       sendSignal(remotePeerId, "candidate", event.candidate.toJSON())
         .then(() => {
+          const candidateSummary = summarizeCandidate(event.candidate.toJSON());
           shared.addTimelineEvent("sent_candidate", {
             category: "signaling",
             direction: "outbound",
-            remote_peer_id: remotePeerId
+            remote_peer_id: remotePeerId,
+            from_peer_id: shared.state.clientId,
+            to_peer_id: remotePeerId,
+            summary: "ICE candidate",
+            payload_preview: candidateSummary.payload_preview,
+            payload_full: candidateSummary.payload_full
           });
         })
         .catch((error) => {
@@ -101,7 +246,18 @@
       ensureRemoteVideo(remotePeerId, event.streams[0]);
       shared.addTimelineEvent("remote_track", {
         category: "media",
-        remote_peer_id: remotePeerId
+        direction: "inbound",
+        remote_peer_id: remotePeerId,
+        from_peer_id: remotePeerId,
+        to_peer_id: shared.state.clientId,
+        summary: `${event.track.kind} track ${event.track.readyState}`,
+        payload_preview: `track kind=${event.track.kind} stream=${event.streams[0] ? event.streams[0].id : "--"}`,
+        payload_full: JSON.stringify({
+          track_id: event.track.id,
+          kind: event.track.kind,
+          ready_state: event.track.readyState,
+          stream_ids: event.streams.map((stream) => stream.id)
+        }, null, 2)
       });
     });
 
@@ -128,10 +284,16 @@
     const offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
     await sendSignal(remotePeerId, "offer", peerConnection.localDescription.toJSON());
+    const offerSummary = summarizeSessionDescription(peerConnection.localDescription);
     shared.addTimelineEvent("sent_offer", {
       category: "signaling",
       direction: "outbound",
-      remote_peer_id: remotePeerId
+      remote_peer_id: remotePeerId,
+      from_peer_id: shared.state.clientId,
+      to_peer_id: remotePeerId,
+      summary: "WebRTC offer",
+      payload_preview: offerSummary.payload_preview,
+      payload_full: offerSummary.payload_full
     });
   }
 
@@ -143,16 +305,27 @@
     shared.addTimelineEvent("received_offer", {
       category: "signaling",
       direction: "inbound",
-      remote_peer_id: remotePeerId
+      remote_peer_id: remotePeerId,
+      from_peer_id: remotePeerId,
+      to_peer_id: shared.state.clientId,
+      summary: "WebRTC offer",
+      payload_preview: summarizeSessionDescription(message.payload).payload_preview,
+      payload_full: summarizeSessionDescription(message.payload).payload_full
     });
 
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
     await sendSignal(remotePeerId, "answer", peerConnection.localDescription.toJSON());
+    const answerSummary = summarizeSessionDescription(peerConnection.localDescription);
     shared.addTimelineEvent("sent_answer", {
       category: "signaling",
       direction: "outbound",
-      remote_peer_id: remotePeerId
+      remote_peer_id: remotePeerId,
+      from_peer_id: shared.state.clientId,
+      to_peer_id: remotePeerId,
+      summary: "WebRTC answer",
+      payload_preview: answerSummary.payload_preview,
+      payload_full: answerSummary.payload_full
     });
   }
 
@@ -164,7 +337,12 @@
     shared.addTimelineEvent("received_answer", {
       category: "signaling",
       direction: "inbound",
-      remote_peer_id: remotePeerId
+      remote_peer_id: remotePeerId,
+      from_peer_id: remotePeerId,
+      to_peer_id: shared.state.clientId,
+      summary: "WebRTC answer",
+      payload_preview: summarizeSessionDescription(message.payload).payload_preview,
+      payload_full: summarizeSessionDescription(message.payload).payload_full
     });
   }
 
@@ -176,10 +354,16 @@
       return;
     }
     await peerConnection.addIceCandidate(new RTCIceCandidate(message.payload));
+    const candidateSummary = summarizeCandidate(message.payload);
     shared.addTimelineEvent("received_candidate", {
       category: "signaling",
       direction: "inbound",
-      remote_peer_id: remotePeerId
+      remote_peer_id: remotePeerId,
+      from_peer_id: remotePeerId,
+      to_peer_id: shared.state.clientId,
+      summary: "ICE candidate",
+      payload_preview: candidateSummary.payload_preview,
+      payload_full: candidateSummary.payload_full
     });
   }
 
@@ -192,9 +376,10 @@
     delete shared.state.peers[remotePeerId];
     delete shared.state.pendingCandidates[remotePeerId];
     delete shared.state.remoteStreams[remotePeerId];
-    const video = document.getElementById(`remoteVideo-${remotePeerId}`);
-    if (video) {
-      video.remove();
+    const tile = document.getElementById(`remoteTile-${remotePeerId}`);
+    if (tile) {
+      tile.remove();
+      setRemoteGridClass();
     }
   }
 
@@ -202,6 +387,7 @@
     if (message.type === "peer_joined") {
       const peer = message.payload;
       shared.state.peers[peer.peer_id] = peer;
+      refreshRemotePeerTile(peer.peer_id);
       shared.addTimelineEvent("peer_joined", {
         category: "room",
         remote_peer_id: peer.peer_id,
@@ -285,6 +471,7 @@
 
   async function joinRoom(roomId, displayName) {
     shared.state.roomId = roomId || "room1";
+    shared.state.localDisplayName = displayName || "Learner";
     shared.setConnectionState("joining");
     const response = await fetch("/rooms/join", {
       method: "POST",
@@ -302,6 +489,7 @@
     }
     for (const peer of payload.data.existing_peers) {
       shared.state.peers[peer.peer_id] = peer;
+      refreshRemotePeerTile(peer.peer_id);
     }
     shared.setConnectionState("joined");
     shared.addTimelineEvent("joined_room", { category: "room", summary: shared.state.roomId });
@@ -344,6 +532,7 @@
   window.RTCTrainingSession = {
     startMedia,
     joinRoom,
-    leaveRoom
+    leaveRoom,
+    renderRemotePeerStats
   };
 })();

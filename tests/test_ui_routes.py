@@ -51,6 +51,11 @@ async def test_dashboard_homepage_loads_independent_shell(dashboard_client):
     assert response.status == 200
     assert "RTCTraining Dashboard" in body
     assert "WebRTC Service" in body
+    assert "statsRoomInput" in body
+    assert "statsState" in body
+    assert "peerPairList" in body
+    assert "latestStatsPanel" in body
+    assert "statsHistoryTable" in body
 
 
 @pytest.mark.asyncio
@@ -61,3 +66,20 @@ async def test_dashboard_homepage_contains_inline_service_check_fallback(dashboa
     assert response.status == 200
     assert "window.__RTCTrainingDashboardInlineBootstrap" in body
     assert "/api/webrtc/members?origin=" in body
+
+
+@pytest.mark.asyncio
+async def test_dashboard_stats_proxy_routes_exist(dashboard_client):
+    stats = await dashboard_client.get(
+        "/api/webrtc/stats?origin=https://localhost:8080&room_id=room1"
+    )
+    history = await dashboard_client.get(
+        "/api/webrtc/stats/history?origin=https://localhost:8080&room_id=room1"
+    )
+    peers = await dashboard_client.get(
+        "/api/webrtc/stats/peers?origin=https://localhost:8080&room_id=room1"
+    )
+
+    assert stats.status != 404
+    assert history.status != 404
+    assert peers.status != 404

@@ -74,9 +74,58 @@ input {
 }
 
 #roomSummary,
-#csvState {
+#csvState,
+#statsState {
   margin: 16px 0 0;
   font-weight: 700;
+}
+
+.stats-panel {
+  grid-column: span 2;
+}
+
+#peerPairList {
+  display: grid;
+  gap: 6px;
+  min-height: 28px;
+  margin: 16px 0;
+  padding-left: 18px;
+}
+
+#latestStatsPanel {
+  display: grid;
+  grid-template-columns: minmax(96px, max-content) 1fr;
+  gap: 8px 16px;
+  margin: 16px 0;
+}
+
+#latestStatsPanel dt {
+  color: #53636b;
+  font-weight: 700;
+}
+
+#latestStatsPanel dd {
+  margin: 0;
+}
+
+#statsHistoryTable {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+#statsHistoryTable th,
+#statsHistoryTable td {
+  padding: 8px;
+  border-top: 1px solid #d3dee3;
+  overflow-wrap: anywhere;
+  text-align: left;
+  vertical-align: top;
+}
+
+#statsHistoryTable th {
+  color: #53636b;
+  font-size: 13px;
 }
 
 @media (max-width: 640px) {
@@ -87,5 +136,9 @@ input {
   .dashboard-header {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .stats-panel {
+    grid-column: span 1;
   }
 }

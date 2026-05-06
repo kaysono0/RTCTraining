@@ -46,6 +46,14 @@ function bootstrapRTCTraining() {
           peerConnection.connectionState === "connected";
       }).length;
     },
+    getConnectedPeerIds() {
+      return Object.entries(shared.state.peerConnections)
+        .filter(([_remotePeerId, peerConnection]) => {
+          return ["connected", "completed"].includes(peerConnection.iceConnectionState) ||
+            peerConnection.connectionState === "connected";
+        })
+        .map(([remotePeerId]) => remotePeerId);
+    },
     getRemoteVideoCount() {
       return document.querySelectorAll("#remoteVideos video").length;
     },

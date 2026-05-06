@@ -1,6 +1,27 @@
+import csv
+import io
+
 from aiohttp import web
 
 from src.webrtc.response import error_payload, success_payload
+
+
+CSV_FIELDS = [
+    "sample_index",
+    "timestamp",
+    "room_id",
+    "test_session_id",
+    "peer_id",
+    "remote_peer_id",
+    "rtt_ms",
+    "packets_lost",
+    "jitter_ms",
+    "bitrate_kbps",
+    "fps",
+    "frame_width",
+    "frame_height",
+    "codec",
+]
 
 
 class StatsHandlers:
@@ -63,6 +84,47 @@ class StatsHandlers:
 
         return web.json_response(
             success_payload({"peers": self.stats_store.peers(room_id=room_id)})
+        )
+
+    async def export_csv(self, request):
+        room_id = request.query.get("room_id")
+        if not room_id:
+            return self._bad_request("room_id is required", {"field": "room_id"})
+
+        samples = self.stats_store.history(
+            room_id=room_id,
+            peer_id=request.query.get("peer_id"),
+            remote_peer_id=request.query.get("remote_peer_id"),
+            test_session_id=request.query.get("test_session_id"),
+        )
+        buffer = io.StringIO()
+        writer = csv.DictWriter(buffer, fieldnames=CSV_FIELDS)
+        writer.writeheader()
+        for sample in samples:
+            metrics = sample.get("metrics", {})
+            writer.writerow(
+                {
+                    "sample_index": sample.get("sample_index", ""),
+                    "timestamp": sample.get("timestamp", ""),
+                    "room_id": sample.get("room_id", ""),
+                    "test_session_id": sample.get("test_session_id") or "",
+                    "peer_id": sample.get("peer_id", ""),
+                    "remote_peer_id": sample.get("remote_peer_id", ""),
+                    "rtt_ms": metrics.get("rtt_ms", ""),
+                    "packets_lost": metrics.get("packets_lost", ""),
+                    "jitter_ms": metrics.get("jitter_ms", ""),
+                    "bitrate_kbps": metrics.get("bitrate_kbps", ""),
+                    "fps": metrics.get("fps", ""),
+                    "frame_width": metrics.get("frame_width", ""),
+                    "frame_height": metrics.get("frame_height", ""),
+                    "codec": metrics.get("codec", ""),
+                }
+            )
+
+        return web.Response(
+            text=buffer.getvalue(),
+            content_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{room_id}-stats.csv"'},
         )
 
     async def clear_stats(self, request):
