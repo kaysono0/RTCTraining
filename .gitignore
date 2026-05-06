@@ -18,9 +18,19 @@ env/
 certs/
 data/
 automation/artifacts/
+automation/tasks/
 .automation/
 .worktrees/
 worktrees/
+
+# Local agent/tooling state
+.agents/
+.claude/
+.qwen/
+.trae/
+skills/
+skills-lock.json
+.debug_*.py
 
 # Local editor/OS files
 .idea/
