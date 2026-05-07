@@ -149,6 +149,93 @@ def test_webrtc_page_can_start_media_join_and_leave_room(browser_context, webrtc
     expect(page.locator("#connectionState")).to_have_text("left")
 
 
+def test_webrtc_mobile_controls_stay_visible(browser_context, webrtc_https_server):
+    page = browser_context.new_page()
+    page.set_viewport_size({"width": 390, "height": 844})
+
+    page.goto(webrtc_https_server)
+
+    action_bar = page.locator(".mobile-action-bar")
+    expect(action_bar).to_be_visible()
+    assert action_bar.evaluate("element => getComputedStyle(element).position") == "fixed"
+
+    for name in ("Start Media", "Join", "Leave"):
+        button = page.get_by_role("button", name=name)
+        expect(button).to_be_visible()
+        box = button.bounding_box()
+        assert box is not None
+        assert 0 <= box["y"] < 844
+        assert box["y"] + box["height"] <= 844
+
+
+def test_webrtc_join_starts_media_when_needed(browser_context, webrtc_https_server):
+    page = browser_context.new_page()
+
+    page.goto(webrtc_https_server)
+    page.fill("#roomIdInput", "join-starts-media")
+    page.fill("#displayNameInput", "Mobile Learner")
+    page.get_by_role("button", name="Join").click()
+
+    expect(page.locator("#connectionState")).to_have_text("joined")
+    timeline_types = page.evaluate(
+        "window.__RTCTrainingTestHooks.getTimeline().map((event) => event.type)"
+    )
+    assert timeline_types == ["local_media_ready", "joined_room"]
+
+
+def test_webrtc_media_error_records_browser_error_name(browser_context, webrtc_https_server):
+    page = browser_context.new_page()
+
+    page.goto(webrtc_https_server)
+    page.evaluate(
+        """
+        () => {
+          navigator.mediaDevices.getUserMedia = async () => {
+            throw new DOMException("Permission denied for test", "NotAllowedError");
+          };
+        }
+        """
+    )
+    page.get_by_role("button", name="Start Media").click()
+
+    expect(page.locator("#connectionState")).to_have_text("failed")
+    media_error = page.evaluate("window.__RTCTrainingTestHooks.getTimeline().at(-1)")
+    assert media_error["type"] == "media_error"
+    assert media_error["summary"] == "NotAllowedError: Permission denied for test"
+    assert media_error["details"]["error_name"] == "NotAllowedError"
+
+
+def test_webrtc_media_falls_back_when_facing_mode_is_overconstrained(
+    browser_context,
+    webrtc_https_server,
+):
+    page = browser_context.new_page()
+
+    page.goto(webrtc_https_server)
+    page.evaluate(
+        """
+        () => {
+          let calls = 0;
+          navigator.mediaDevices.getUserMedia = async (constraints) => {
+            calls += 1;
+            window.__mediaConstraintCalls = window.__mediaConstraintCalls || [];
+            window.__mediaConstraintCalls.push(constraints);
+            if (calls === 1) {
+              throw new DOMException("No matching camera", "OverconstrainedError");
+            }
+            return new MediaStream();
+          };
+        }
+        """
+    )
+    page.get_by_role("button", name="Start Media").click()
+
+    expect(page.locator("#connectionState")).to_have_text("media_ready")
+    calls = page.evaluate("window.__mediaConstraintCalls")
+    assert calls[0]["video"]["facingMode"] == "user"
+    assert calls[1]["video"] is True
+
+
 def test_webrtc_page_exposes_nack_mode_control_and_sdp_munging(
     browser_context,
     webrtc_https_server,

@@ -27,7 +27,7 @@ function bootstrapRTCTraining() {
   addClickListener("startMediaButton", () => {
     session.startMedia().catch((error) => {
       shared.setConnectionState("failed");
-      shared.addTimelineEvent("media_error", { category: "error", summary: error.message });
+      shared.addTimelineEvent("media_error", session.describeMediaError(error));
     });
   });
 
@@ -36,6 +36,10 @@ function bootstrapRTCTraining() {
     const displayName = document.getElementById("displayNameInput").value;
     session.joinRoom(roomId, displayName).catch((error) => {
       shared.setConnectionState("failed");
+      if (["NotAllowedError", "NotFoundError", "NotReadableError", "NotSupportedError", "OverconstrainedError"].includes(error.name)) {
+        shared.addTimelineEvent("media_error", session.describeMediaError(error));
+        return;
+      }
       shared.addTimelineEvent("join_room_failed", { category: "error", summary: error.message });
     });
   });

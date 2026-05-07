@@ -25,11 +25,13 @@ async def test_webrtc_homepage_loads_experiment_shell(webrtc_client):
     assert response.status == 200
     assert response.headers["Cache-Control"] == "no-store"
     assert "RTCTraining" in body
-    assert re.search(r'src="/static/webrtc/chat_real_nack\.js\?v=[^"]*nack-mode[^"]*"', body)
-    assert re.search(r'src="/static/webrtc/chat_real_session\.js\?v=[^"]*nack-mode[^"]*"', body)
-    assert re.search(r'src="/static/webrtc/chat_real_stats\.js\?v=[^"]*nack-mode[^"]*"', body)
-    assert re.search(r'src="/static/webrtc/chat_real_bootstrap\.js\?v=[^"]*nack-mode[^"]*"', body)
+    assert re.search(r'href="/static/webrtc/chat_real\.css\?v=[^"]*mobile-media[^"]*"', body)
+    assert re.search(r'src="/static/webrtc/chat_real_nack\.js\?v=[^"]*nack-mode[^"]*mobile-media[^"]*"', body)
+    assert re.search(r'src="/static/webrtc/chat_real_session\.js\?v=[^"]*nack-mode[^"]*mobile-media[^"]*"', body)
+    assert re.search(r'src="/static/webrtc/chat_real_stats\.js\?v=[^"]*nack-mode[^"]*mobile-media[^"]*"', body)
+    assert re.search(r'src="/static/webrtc/chat_real_bootstrap\.js\?v=[^"]*nack-mode[^"]*mobile-media[^"]*"', body)
     assert "chat_real_nack.js" in body
+    assert 'class="mobile-action-bar"' in body
     assert 'id="nackModeSelect"' in body
     assert 'id="nackModeState"' in body
     assert "window.__RTCTrainingTestHooks" in body

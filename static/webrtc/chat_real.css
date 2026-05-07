@@ -14,7 +14,7 @@ body {
 }
 
 .topbar {
-  align-items: center;
+  align-items: flex-start;
   background: #ffffff;
   border-bottom: 1px solid #d8dee9;
   display: flex;
@@ -31,13 +31,34 @@ body {
 .room-controls {
   display: flex;
   gap: 8px;
+  min-width: 0;
+}
+
+.room-controls label {
+  color: #475569;
+  display: grid;
+  font-size: 12px;
+  gap: 4px;
+}
+
+.room-controls label span {
+  line-height: 1.2;
 }
 
 .room-controls input,
 .room-controls select,
-.room-controls button {
+.mobile-action-bar button {
   font: inherit;
   min-height: 36px;
+}
+
+.room-controls input,
+.room-controls select {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  box-sizing: border-box;
+  max-width: 160px;
+  padding: 0 10px;
 }
 
 #nackModeState {
@@ -46,6 +67,26 @@ body {
   display: inline-flex;
   font-size: 13px;
   min-height: 36px;
+  padding-top: 16px;
+}
+
+.mobile-action-bar {
+  display: flex;
+  gap: 8px;
+}
+
+.mobile-action-bar button {
+  background: #1d4ed8;
+  border: 1px solid #1d4ed8;
+  border-radius: 6px;
+  color: #ffffff;
+  min-width: 92px;
+  padding: 0 14px;
+}
+
+.mobile-action-bar button#leaveRoomButton {
+  background: #ffffff;
+  color: #1d4ed8;
 }
 
 .video-grid {
@@ -205,4 +246,87 @@ video {
 
 .timeline-panel {
   margin: 0 24px 24px;
+}
+
+@media (max-width: 700px) {
+  body {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  }
+
+  .topbar {
+    display: grid;
+    gap: 14px;
+    padding: 14px;
+  }
+
+  .room-controls {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .room-controls label {
+    min-width: 0;
+  }
+
+  .room-controls label:last-of-type,
+  #nackModeState {
+    grid-column: span 1;
+  }
+
+  .room-controls input,
+  .room-controls select {
+    max-width: none;
+    min-width: 0;
+    width: 100%;
+  }
+
+  #nackModeState {
+    align-self: end;
+    padding-top: 0;
+  }
+
+  .mobile-action-bar {
+    background: #ffffff;
+    border-top: 1px solid #d8dee9;
+    bottom: 0;
+    box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.12);
+    box-sizing: border-box;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: 1.25fr 1fr 1fr;
+    left: 0;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    position: fixed;
+    right: 0;
+    z-index: 20;
+  }
+
+  .mobile-action-bar button {
+    min-height: 48px;
+    min-width: 0;
+    padding: 0 8px;
+    width: 100%;
+  }
+
+  .video-grid {
+    grid-template-columns: 1fr;
+    padding: 14px;
+  }
+
+  .video-grid article,
+  .timeline-panel {
+    padding: 12px;
+  }
+
+  .video-grid article h2,
+  .timeline-panel h2 {
+    font-size: 16px;
+    margin: 0 0 10px;
+  }
+
+  .timeline-panel {
+    margin: 0 14px 14px;
+  }
 }

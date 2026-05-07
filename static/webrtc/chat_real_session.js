@@ -467,13 +467,49 @@
     shared.state.pollingTimer = null;
   }
 
+  function describeMediaError(error) {
+    const name = error && error.name ? error.name : "MediaError";
+    const message = error && error.message ? error.message : String(error);
+    return {
+      category: "error",
+      summary: `${name}: ${message}`,
+      error_name: name,
+      error_message: message
+    };
+  }
+
+  async function requestLocalMedia() {
+    try {
+      return await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: { facingMode: "user" }
+      });
+    } catch (error) {
+      if (error && error.name === "OverconstrainedError") {
+        return navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+      }
+      throw error;
+    }
+  }
+
   async function startMedia() {
     shared.setConnectionState("media_requesting");
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      const error = new Error("getUserMedia is unavailable. Use HTTPS and a browser that supports camera capture.");
+      error.name = "NotSupportedError";
+      throw error;
+    }
+    const stream = await requestLocalMedia();
     shared.state.localStream = stream;
     const video = document.getElementById("localVideo");
     if (video) {
+      video.muted = true;
+      video.autoplay = true;
+      video.playsInline = true;
       video.srcObject = stream;
+      if (video.play) {
+        video.play().catch(() => {});
+      }
     }
     shared.setConnectionState("media_ready");
     shared.addTimelineEvent("local_media_ready", { category: "media" });
@@ -483,6 +519,9 @@
   async function joinRoom(roomId, displayName) {
     shared.state.roomId = roomId || "room1";
     shared.state.localDisplayName = displayName || "Learner";
+    if (!shared.state.localStream) {
+      await startMedia();
+    }
     shared.setConnectionState("joining");
     const response = await fetch("/rooms/join", {
       method: "POST",
@@ -544,6 +583,7 @@
     startMedia,
     joinRoom,
     leaveRoom,
+    describeMediaError,
     renderRemotePeerStats
   };
 })();

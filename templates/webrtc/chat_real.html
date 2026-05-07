@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>RTCTraining</title>
-    <link rel="stylesheet" href="/static/webrtc/chat_real.css">
+    <link rel="stylesheet" href="/static/webrtc/chat_real.css?v=20260507-nack-mode-mobile-media">
   </head>
   <body>
     <main class="app-shell">
@@ -14,13 +14,24 @@
           <p id="connectionState">idle</p>
         </div>
         <div class="room-controls">
-          <input id="roomIdInput" value="room1" aria-label="Room ID">
-          <input id="displayNameInput" value="Learner" aria-label="Display name">
-          <select id="nackModeSelect" aria-label="NACK mode">
-            <option value="enabled" selected>NACK on</option>
-            <option value="disabled">NACK off</option>
-          </select>
+          <label>
+            <span>Room</span>
+            <input id="roomIdInput" value="room1" aria-label="Room ID">
+          </label>
+          <label>
+            <span>Name</span>
+            <input id="displayNameInput" value="Learner" aria-label="Display name">
+          </label>
+          <label>
+            <span>NACK</span>
+            <select id="nackModeSelect" aria-label="NACK mode">
+              <option value="enabled" selected>NACK on</option>
+              <option value="disabled">NACK off</option>
+            </select>
+          </label>
           <span id="nackModeState">nack_enabled</span>
+        </div>
+        <div class="mobile-action-bar" aria-label="Room actions">
           <button id="startMediaButton" type="button">Start Media</button>
           <button id="joinRoomButton" type="button">Join</button>
           <button id="leaveRoomButton" type="button">Leave</button>
@@ -41,11 +52,11 @@
         <ol id="timeline"></ol>
       </section>
     </main>
-    <script src="/static/webrtc/chat_real_shared.js?v=20260507-nack-mode"></script>
-    <script src="/static/webrtc/chat_real_nack.js?v=20260507-nack-mode"></script>
-    <script src="/static/webrtc/chat_real_session.js?v=20260507-nack-mode"></script>
-    <script src="/static/webrtc/chat_real_stats.js?v=20260507-nack-mode"></script>
-    <script src="/static/webrtc/chat_real_bootstrap.js?v=20260507-nack-mode"></script>
+    <script src="/static/webrtc/chat_real_shared.js?v=20260507-nack-mode-mobile-media"></script>
+    <script src="/static/webrtc/chat_real_nack.js?v=20260507-nack-mode-mobile-media"></script>
+    <script src="/static/webrtc/chat_real_session.js?v=20260507-nack-mode-mobile-media"></script>
+    <script src="/static/webrtc/chat_real_stats.js?v=20260507-nack-mode-mobile-media"></script>
+    <script src="/static/webrtc/chat_real_bootstrap.js?v=20260507-nack-mode-mobile-media"></script>
     <script>
       window.__RTCTrainingTestHooks = window.__RTCTrainingTestHooks || {};
     </script>
