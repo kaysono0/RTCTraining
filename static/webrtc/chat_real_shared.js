@@ -16,7 +16,9 @@
     localStream: null,
     pollingTimer: null,
     localDisplayName: "Learner",
-    nackMode: "enabled"
+    nackMode: "enabled",
+    bitrateMode: "auto",
+    senderMaxBitrateBps: null
   };
 
   function setConnectionState(nextState) {

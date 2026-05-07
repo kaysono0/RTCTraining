@@ -65,6 +65,8 @@
       quality_limitation_reason: null,
       nack_enabled: shared.state.nackMode === "enabled",
       nack_mode: shared.state.nackMode,
+      bitrate_mode: shared.state.bitrateMode,
+      sender_max_bitrate_bps: shared.state.senderMaxBitrateBps,
       nack_count: 0,
       pli_count: 0,
       fir_count: 0

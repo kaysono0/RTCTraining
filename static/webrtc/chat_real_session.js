@@ -11,6 +11,17 @@
     }
   }
 
+  function applyCurrentBitrate(peerConnection) {
+    if (window.RTCTrainingBitrate) {
+      window.RTCTrainingBitrate.applyBitrateToPeerConnection(peerConnection).catch((error) => {
+        shared.addTimelineEvent("bitrate_apply_failed", {
+          category: "error",
+          summary: error.message
+        });
+      });
+    }
+  }
+
   function updateConnectedState() {
     const connections = Object.values(shared.state.peerConnections);
     if (connections.length === 0) {
@@ -219,6 +230,7 @@
     shared.state.peerConnections[remotePeerId] = peerConnection;
     shared.state.pendingCandidates[remotePeerId] = [];
     addLocalTracks(peerConnection);
+    applyCurrentBitrate(peerConnection);
 
     peerConnection.addEventListener("icecandidate", (event) => {
       if (!event.candidate) {

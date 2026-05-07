@@ -47,13 +47,15 @@ body {
 
 .room-controls input,
 .room-controls select,
+.room-controls button,
 .mobile-action-bar button {
   font: inherit;
   min-height: 36px;
 }
 
 .room-controls input,
-.room-controls select {
+.room-controls select,
+.room-controls button {
   border: 1px solid #cbd5e1;
   border-radius: 6px;
   box-sizing: border-box;
@@ -61,7 +63,15 @@ body {
   padding: 0 10px;
 }
 
-#nackModeState {
+#applyBitrateButton {
+  align-self: end;
+  background: #ffffff;
+  color: #1d4ed8;
+  cursor: pointer;
+}
+
+#nackModeState,
+#bitrateModeState {
   align-items: center;
   color: #475569;
   display: inline-flex;
@@ -276,13 +286,15 @@ video {
   }
 
   .room-controls input,
-  .room-controls select {
+  .room-controls select,
+  .room-controls button {
     max-width: none;
     min-width: 0;
     width: 100%;
   }
 
-  #nackModeState {
+  #nackModeState,
+  #bitrateModeState {
     align-self: end;
     padding-top: 0;
   }

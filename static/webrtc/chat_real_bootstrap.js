@@ -2,6 +2,7 @@ function bootstrapRTCTraining() {
   const shared = window.RTCTrainingShared;
   const session = window.RTCTrainingSession;
   const nack = window.RTCTrainingNack;
+  const bitrate = window.RTCTrainingBitrate;
 
   function addClickListener(id, callback) {
     const element = document.getElementById(id);
@@ -22,6 +23,24 @@ function bootstrapRTCTraining() {
         });
       });
     }
+  }
+
+  if (bitrate) {
+    bitrate.renderBitrateMode();
+    addClickListener("applyBitrateButton", () => {
+      const input = document.getElementById("senderBitrateInput");
+      bitrate.setSenderBitrateKbps(input ? input.value : "").then((mode) => {
+        shared.addTimelineEvent("bitrate_mode_changed", {
+          category: "media",
+          summary: mode
+        });
+      }).catch((error) => {
+        shared.addTimelineEvent("bitrate_apply_failed", {
+          category: "error",
+          summary: error.message
+        });
+      });
+    });
   }
 
   addClickListener("startMediaButton", () => {
@@ -97,6 +116,15 @@ function bootstrapRTCTraining() {
     },
     getLatestStats() {
       return shared.state.latestStats;
+    },
+    setSenderBitrateKbps(value) {
+      return bitrate.setSenderBitrateKbps(value);
+    },
+    getBitrateMode() {
+      return shared.state.bitrateMode;
+    },
+    getSenderMaxBitrateBps() {
+      return shared.state.senderMaxBitrateBps;
     },
     startMedia() {
       return session.startMedia();

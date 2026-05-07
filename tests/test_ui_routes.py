@@ -34,7 +34,11 @@ async def test_webrtc_homepage_loads_experiment_shell(webrtc_client):
     assert 'class="mobile-action-bar"' in body
     assert 'id="nackModeSelect"' in body
     assert 'id="nackModeState"' in body
+    assert 'id="senderBitrateInput"' in body
+    assert 'id="applyBitrateButton"' in body
+    assert 'id="bitrateModeState"' in body
     assert "window.__RTCTrainingTestHooks" in body
+    assert "chat_real_bitrate.js" in body
 
 
 @pytest.mark.asyncio
@@ -44,6 +48,7 @@ async def test_webrtc_homepage_loads_experiment_shell(webrtc_client):
         ("chat_real_bootstrap.js", "bootstrapRTCTraining"),
         ("chat_real_stats.js", "RTCTrainingStats"),
         ("chat_real_nack.js", "RTCTrainingNack"),
+        ("chat_real_bitrate.js", "RTCTrainingBitrate"),
     ],
 )
 async def test_webrtc_static_asset_loads(webrtc_client, asset, expected):
@@ -52,6 +57,18 @@ async def test_webrtc_static_asset_loads(webrtc_client, asset, expected):
 
     assert response.status == 200
     assert expected in body
+
+
+@pytest.mark.asyncio
+async def test_webrtc_bitrate_module_sets_sender_parameters(webrtc_client):
+    response = await webrtc_client.get("/static/webrtc/chat_real_bitrate.js")
+    body = await response.text()
+
+    assert response.status == 200
+    assert "setParameters" in body
+    assert "getSenders" in body
+    assert "RTCTrainingBitrate" in body
+    assert "sender_max_bitrate_bps" not in body
 
 
 @pytest.mark.asyncio
@@ -232,6 +249,16 @@ async def test_webrtc_stats_uploader_records_nack_mode(webrtc_client):
 
     assert 'nack_enabled: shared.state.nackMode === "enabled"' in body
     assert "nack_mode: shared.state.nackMode" in body
+
+
+@pytest.mark.asyncio
+async def test_webrtc_stats_uploader_records_sender_bitrate_config(webrtc_client):
+    response = await webrtc_client.get("/static/webrtc/chat_real_stats.js")
+    body = await response.text()
+
+    assert response.status == 200
+    assert "bitrate_mode: shared.state.bitrateMode" in body
+    assert "sender_max_bitrate_bps: shared.state.senderMaxBitrateBps" in body
 
 
 @pytest.mark.asyncio

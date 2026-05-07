@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>RTCTraining</title>
-    <link rel="stylesheet" href="/static/webrtc/chat_real.css?v=20260507-nack-mode-mobile-media">
+    <link rel="stylesheet" href="/static/webrtc/chat_real.css?v=20260507-nack-mode-manual-bitrate-mobile-media">
   </head>
   <body>
     <main class="app-shell">
@@ -30,6 +30,12 @@
             </select>
           </label>
           <span id="nackModeState">nack_enabled</span>
+          <label>
+            <span>Bitrate kbps</span>
+            <input id="senderBitrateInput" type="number" min="0" step="1" inputmode="numeric" placeholder="auto" aria-label="Sender bitrate kbps">
+          </label>
+          <button id="applyBitrateButton" type="button">Apply</button>
+          <span id="bitrateModeState">bitrate_auto</span>
         </div>
         <div class="mobile-action-bar" aria-label="Room actions">
           <button id="startMediaButton" type="button">Start Media</button>
@@ -52,11 +58,12 @@
         <ol id="timeline"></ol>
       </section>
     </main>
-    <script src="/static/webrtc/chat_real_shared.js?v=20260507-nack-mode-mobile-media"></script>
-    <script src="/static/webrtc/chat_real_nack.js?v=20260507-nack-mode-mobile-media"></script>
-    <script src="/static/webrtc/chat_real_session.js?v=20260507-nack-mode-mobile-media"></script>
-    <script src="/static/webrtc/chat_real_stats.js?v=20260507-nack-mode-mobile-media"></script>
-    <script src="/static/webrtc/chat_real_bootstrap.js?v=20260507-nack-mode-mobile-media"></script>
+    <script src="/static/webrtc/chat_real_shared.js?v=20260507-nack-mode-manual-bitrate-mobile-media"></script>
+    <script src="/static/webrtc/chat_real_nack.js?v=20260507-nack-mode-manual-bitrate-mobile-media"></script>
+    <script src="/static/webrtc/chat_real_bitrate.js?v=20260507-manual-bitrate-mobile-media"></script>
+    <script src="/static/webrtc/chat_real_session.js?v=20260507-nack-mode-manual-bitrate-mobile-media"></script>
+    <script src="/static/webrtc/chat_real_stats.js?v=20260507-nack-mode-manual-bitrate-mobile-media"></script>
+    <script src="/static/webrtc/chat_real_bootstrap.js?v=20260507-nack-mode-manual-bitrate-mobile-media"></script>
     <script>
       window.__RTCTrainingTestHooks = window.__RTCTrainingTestHooks || {};
     </script>

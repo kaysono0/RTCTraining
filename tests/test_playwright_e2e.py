@@ -276,6 +276,23 @@ def test_webrtc_page_exposes_nack_mode_control_and_sdp_munging(
     assert "a=rtcp-fb:96 goog-remb" in result
 
 
+def test_webrtc_page_applies_manual_sender_bitrate(browser_context, webrtc_https_server):
+    page = browser_context.new_page()
+
+    page.goto(webrtc_https_server)
+
+    expect(page.locator("#bitrateModeState")).to_have_text("bitrate_auto")
+    assert page.evaluate("window.__RTCTrainingTestHooks.setSenderBitrateKbps(800)") == "manual"
+    expect(page.locator("#bitrateModeState")).to_have_text("bitrate_manual_800kbps")
+    assert page.evaluate("window.__RTCTrainingTestHooks.getBitrateMode()") == "manual"
+    assert page.evaluate("window.__RTCTrainingTestHooks.getSenderMaxBitrateBps()") == 800000
+
+    assert page.evaluate("window.__RTCTrainingTestHooks.setSenderBitrateKbps(0)") == "auto"
+    expect(page.locator("#bitrateModeState")).to_have_text("bitrate_auto")
+    assert page.evaluate("window.__RTCTrainingTestHooks.getBitrateMode()") == "auto"
+    assert page.evaluate("window.__RTCTrainingTestHooks.getSenderMaxBitrateBps()") is None
+
+
 def test_webrtc_hooks_survive_legacy_html_missing_nack_controls(
     browser_context,
     webrtc_https_server,
