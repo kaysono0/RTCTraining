@@ -56,6 +56,7 @@ async def test_webrtc_homepage_loads_experiment_shell(webrtc_client):
     assert 'id="finishTestSessionButton"' in body
     assert 'id="cancelTestSessionButton"' in body
     assert 'id="testSessionState"' in body
+    assert 'id="testSessionDownloads"' in body
     assert "window.__RTCTrainingTestHooks" in body
     assert "chat_real_bitrate.js" in body
 

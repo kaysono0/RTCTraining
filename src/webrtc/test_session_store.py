@@ -24,6 +24,7 @@ class TestSessionStore:
             "finished_at": None,
             "sample_count": 0,
             "output_path": None,
+            "csv_files": [],
         }
         self._sessions[session_id] = session
         return dict(session)
@@ -45,11 +46,12 @@ class TestSessionStore:
         latest = max(candidates, key=lambda session: session["started_at"])
         return dict(latest)
 
-    def finish(self, test_session_id, sample_count=0):
+    def finish(self, test_session_id, sample_count=0, csv_files=None):
         session = self._require_session(test_session_id)
         session["status"] = "finished"
         session["finished_at"] = self._now()
         session["sample_count"] = sample_count
+        session["csv_files"] = list(csv_files or [])
         return dict(session)
 
     def cancel(self, test_session_id):

@@ -1,6 +1,7 @@
 from aiohttp import web
 
 from src.webrtc.dashboard_handlers import DashboardHandlers
+from src.webrtc.config import Settings
 from src.webrtc.mesh_handlers import MeshHandlers
 from src.webrtc.room_store import RoomStore
 from src.webrtc.stats_handlers import StatsHandlers
@@ -10,15 +11,26 @@ from src.webrtc.test_session_store import TestSessionStore
 from src.webrtc.ui_handlers import UIHandlers
 
 
-def create_webrtc_app(room_store=None, stats_store=None, test_session_store=None):
+def create_webrtc_app(
+    room_store=None,
+    stats_store=None,
+    test_session_store=None,
+    test_sessions_dir=None,
+):
     store = room_store or RoomStore()
     stats = stats_store or StatsStore()
     test_sessions = test_session_store or TestSessionStore()
+    settings = Settings()
+    test_session_output_dir = test_sessions_dir or settings.test_sessions_dir
     app = web.Application()
     handlers = MeshHandlers(store)
     dashboard_handlers = DashboardHandlers(store, stats)
     stats_handlers = StatsHandlers(stats, snapshot_builder=dashboard_handlers.build_snapshot)
-    test_session_handlers = TestSessionHandlers(test_sessions, stats)
+    test_session_handlers = TestSessionHandlers(
+        test_sessions,
+        stats,
+        output_dir=test_session_output_dir,
+    )
     ui = UIHandlers()
 
     app["room_store"] = store
@@ -42,4 +54,5 @@ def create_webrtc_app(room_store=None, stats_store=None, test_session_store=None
     app.router.add_post("/stats/test/start", test_session_handlers.start)
     app.router.add_post("/stats/test/finish", test_session_handlers.finish)
     app.router.add_post("/stats/test/cancel", test_session_handlers.cancel)
+    app.router.add_get("/stats/test/download/{file_path:.+}", test_session_handlers.download_csv)
     return app

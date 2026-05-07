@@ -6,6 +6,21 @@
     if (label) {
       label.textContent = `test_session_${shared.state.testSessionStatus}`;
     }
+    const downloads = document.getElementById("testSessionDownloads");
+    if (!downloads) {
+      return;
+    }
+    downloads.replaceChildren();
+    const files = shared.state.testSession && shared.state.testSession.csv_files
+      ? shared.state.testSession.csv_files
+      : [];
+    files.forEach((file) => {
+      const link = document.createElement("a");
+      link.href = file.download_url;
+      link.textContent = `${file.remote_peer_id}.csv`;
+      link.setAttribute("download", "");
+      downloads.appendChild(link);
+    });
   }
 
   function readUiOptions(overrides) {

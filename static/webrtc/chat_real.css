@@ -188,6 +188,22 @@ body {
   overflow-wrap: anywhere;
 }
 
+.test-session-downloads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.test-session-downloads a {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #1d4ed8;
+  font-size: 13px;
+  padding: 6px 10px;
+  text-decoration: none;
+}
+
 .video-grid {
   display: grid;
   gap: 16px;

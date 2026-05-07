@@ -1,0 +1,91 @@
+import csv
+import io
+
+
+CSV_FIELDS = [
+    "sample_index",
+    "timestamp",
+    "room_id",
+    "test_session_id",
+    "peer_id",
+    "remote_peer_id",
+    "connection_state",
+    "ice_connection_state",
+    "rtt_ms",
+    "packets_lost",
+    "packet_loss_rate",
+    "jitter_ms",
+    "bitrate_kbps",
+    "available_outgoing_bitrate_kbps",
+    "fps",
+    "frame_width",
+    "frame_height",
+    "codec",
+    "local_candidate_type",
+    "remote_candidate_type",
+    "candidate_pair_protocol",
+    "packets_sent",
+    "packets_received",
+    "bytes_sent",
+    "bytes_received",
+    "frames_sent",
+    "frames_received",
+    "frames_encoded",
+    "frames_decoded",
+    "frames_dropped",
+    "nack_enabled",
+    "nack_mode",
+    "nack_count",
+    "pli_count",
+    "fir_count",
+    "quality_limitation_reason",
+]
+
+
+def render_stats_csv(samples):
+    buffer = io.StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=CSV_FIELDS)
+    writer.writeheader()
+    for sample in samples:
+        metrics = sample.get("metrics", {})
+        writer.writerow(
+            {
+                "sample_index": sample.get("sample_index", ""),
+                "timestamp": sample.get("timestamp", ""),
+                "room_id": sample.get("room_id", ""),
+                "test_session_id": sample.get("test_session_id") or "",
+                "peer_id": sample.get("peer_id", ""),
+                "remote_peer_id": sample.get("remote_peer_id", ""),
+                "connection_state": metrics.get("connection_state", ""),
+                "ice_connection_state": metrics.get("ice_connection_state", ""),
+                "rtt_ms": metrics.get("rtt_ms", ""),
+                "packets_lost": metrics.get("packets_lost", ""),
+                "packet_loss_rate": metrics.get("packet_loss_rate", ""),
+                "jitter_ms": metrics.get("jitter_ms", ""),
+                "bitrate_kbps": metrics.get("bitrate_kbps", ""),
+                "available_outgoing_bitrate_kbps": metrics.get("available_outgoing_bitrate_kbps", ""),
+                "fps": metrics.get("fps", ""),
+                "frame_width": metrics.get("frame_width", ""),
+                "frame_height": metrics.get("frame_height", ""),
+                "codec": metrics.get("codec", ""),
+                "local_candidate_type": metrics.get("local_candidate_type", ""),
+                "remote_candidate_type": metrics.get("remote_candidate_type", ""),
+                "candidate_pair_protocol": metrics.get("candidate_pair_protocol", ""),
+                "packets_sent": metrics.get("packets_sent", ""),
+                "packets_received": metrics.get("packets_received", ""),
+                "bytes_sent": metrics.get("bytes_sent", ""),
+                "bytes_received": metrics.get("bytes_received", ""),
+                "frames_sent": metrics.get("frames_sent", ""),
+                "frames_received": metrics.get("frames_received", ""),
+                "frames_encoded": metrics.get("frames_encoded", ""),
+                "frames_decoded": metrics.get("frames_decoded", ""),
+                "frames_dropped": metrics.get("frames_dropped", ""),
+                "nack_enabled": metrics.get("nack_enabled", ""),
+                "nack_mode": metrics.get("nack_mode", ""),
+                "nack_count": metrics.get("nack_count", ""),
+                "pli_count": metrics.get("pli_count", ""),
+                "fir_count": metrics.get("fir_count", ""),
+                "quality_limitation_reason": metrics.get("quality_limitation_reason", ""),
+            }
+        )
+    return buffer.getvalue()

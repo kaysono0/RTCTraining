@@ -390,6 +390,7 @@ def test_webrtc_page_runs_test_session_lifecycle(browser_context, webrtc_https_s
     finished = page.evaluate("window.__RTCTrainingTestHooks.finishTestSession()")
     assert finished["status"] == "finished"
     expect(page.locator("#testSessionState")).to_have_text("test_session_finished")
+    expect(page.locator("#testSessionDownloads a")).to_have_count(1)
 
 
 def test_webrtc_hooks_survive_legacy_html_missing_nack_controls(
