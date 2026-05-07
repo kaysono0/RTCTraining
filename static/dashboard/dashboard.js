@@ -10,6 +10,21 @@
     snapshot: null,
     snapshotAvailable: true
   };
+  const REQUIRED_CSV_FIELDS = [
+    "sample_index",
+    "timestamp",
+    "room_id",
+    "test_session_id",
+    "peer_id",
+    "remote_peer_id",
+    "rtt_ms",
+    "packet_loss_rate",
+    "jitter_ms",
+    "bitrate_kbps",
+    "fps",
+    "nack_mode",
+    "abr_mode"
+  ];
 
   function queryParam(name) {
     return new URLSearchParams(window.location.search).get(name);
@@ -153,6 +168,191 @@
       const value = metrics[name];
       return value === undefined || value === null || value === "";
     });
+  }
+
+  function parseCsvLine(line) {
+    const cells = [];
+    let cell = "";
+    let inQuotes = false;
+    for (let index = 0; index < line.length; index += 1) {
+      const char = line[index];
+      const next = line[index + 1];
+      if (char === '"' && inQuotes && next === '"') {
+        cell += '"';
+        index += 1;
+      } else if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === "," && !inQuotes) {
+        cells.push(cell);
+        cell = "";
+      } else {
+        cell += char;
+      }
+    }
+    cells.push(cell);
+    return cells;
+  }
+
+  function parseCsvText(text) {
+    const lines = String(text || "").trim().split(/\r?\n/).filter(Boolean);
+    if (lines.length === 0) {
+      return { headers: [], rows: [] };
+    }
+    const headers = parseCsvLine(lines[0]);
+    const rows = lines.slice(1).map((line) => {
+      const values = parseCsvLine(line);
+      return headers.reduce((row, header, index) => {
+        row[header] = values[index] || "";
+        return row;
+      }, {});
+    });
+    return { headers, rows };
+  }
+
+  function numberFromRow(row, field) {
+    const value = Number(row[field]);
+    return Number.isFinite(value) ? value : null;
+  }
+
+  function average(rows, field) {
+    const values = rows
+      .map((row) => numberFromRow(row, field))
+      .filter((value) => value !== null);
+    if (values.length === 0) {
+      return null;
+    }
+    return Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(2));
+  }
+
+  function uniqueLabel(rows, field) {
+    const values = [...new Set(rows.map((row) => row[field]).filter(Boolean))];
+    if (values.length === 0) {
+      return "-";
+    }
+    return values.length === 1 ? values[0] : `${values[0]} +${values.length - 1}`;
+  }
+
+  function summarizeCsvFile(entry) {
+    const parsed = parseCsvText(entry.text);
+    const missing = REQUIRED_CSV_FIELDS.filter((field) => !parsed.headers.includes(field));
+    if (missing.length) {
+      return {
+        name: entry.name,
+        ok: false,
+        missing,
+        sample_count: parsed.rows.length
+      };
+    }
+    return {
+      name: entry.name,
+      ok: true,
+      missing: [],
+      sample_count: parsed.rows.length,
+      room_id: uniqueLabel(parsed.rows, "room_id"),
+      test_session_id: uniqueLabel(parsed.rows, "test_session_id"),
+      peer_id: uniqueLabel(parsed.rows, "peer_id"),
+      remote_peer_id: uniqueLabel(parsed.rows, "remote_peer_id"),
+      avg_rtt_ms: average(parsed.rows, "rtt_ms"),
+      avg_packet_loss_rate: average(parsed.rows, "packet_loss_rate"),
+      avg_jitter_ms: average(parsed.rows, "jitter_ms"),
+      avg_bitrate_kbps: average(parsed.rows, "bitrate_kbps"),
+      avg_fps: average(parsed.rows, "fps")
+    };
+  }
+
+  function bestBy(files, field, direction) {
+    const valid = files.filter((file) => file.ok && file[field] !== null && file[field] !== undefined);
+    if (!valid.length) {
+      return null;
+    }
+    return valid.reduce((best, file) => {
+      if (!best) {
+        return file;
+      }
+      return direction === "max"
+        ? (file[field] > best[field] ? file : best)
+        : (file[field] < best[field] ? file : best);
+    }, null);
+  }
+
+  function renderCsvAnalysis(result) {
+    const validation = document.getElementById("csvValidationPanel");
+    const tableBody = document.querySelector("#csvComparisonTable tbody");
+    const trend = document.getElementById("csvTrendComparison");
+    if (validation) {
+      validation.innerHTML = "";
+      for (const file of result.files) {
+        const item = document.createElement("div");
+        item.textContent = file.ok
+          ? `${file.name}: ok`
+          : `${file.name}: missing ${file.missing.join(", ")}`;
+        validation.appendChild(item);
+      }
+    }
+    if (tableBody) {
+      tableBody.innerHTML = "";
+      for (const file of result.files.filter((item) => item.ok)) {
+        const row = document.createElement("tr");
+        [
+          file.name,
+          file.sample_count,
+          file.room_id,
+          file.test_session_id,
+          file.peer_id,
+          file.remote_peer_id,
+          formatMetric(file.avg_rtt_ms, " ms"),
+          formatMetric(file.avg_packet_loss_rate, "%"),
+          formatMetric(file.avg_bitrate_kbps, " kbps"),
+          formatMetric(file.avg_fps, "")
+        ].forEach((value) => {
+          const cell = document.createElement("td");
+          cell.textContent = String(value);
+          row.appendChild(cell);
+        });
+        tableBody.appendChild(row);
+      }
+    }
+    if (trend) {
+      trend.innerHTML = "";
+      const rttBest = bestBy(result.files, "avg_rtt_ms", "min");
+      const lossBest = bestBy(result.files, "avg_packet_loss_rate", "min");
+      const bitrateBest = bestBy(result.files, "avg_bitrate_kbps", "max");
+      [
+        rttBest ? `RTT best: ${rttBest.name} (${formatMetric(rttBest.avg_rtt_ms, " ms")})` : "RTT best: -",
+        lossBest ? `Loss best: ${lossBest.name} (${formatMetric(lossBest.avg_packet_loss_rate, "%")})` : "Loss best: -",
+        bitrateBest ? `Bitrate best: ${bitrateBest.name} (${formatMetric(bitrateBest.avg_bitrate_kbps, " kbps")})` : "Bitrate best: -"
+      ].forEach((text) => {
+        const item = document.createElement("div");
+        item.textContent = text;
+        trend.appendChild(item);
+      });
+    }
+  }
+
+  function analyzeCsvTexts(entries) {
+    const files = (entries || []).map(summarizeCsvFile);
+    const result = {
+      ok: files.length > 0 && files.every((file) => file.ok),
+      files
+    };
+    renderCsvAnalysis(result);
+    setText("csvState", result.ok ? "csv_ready" : "csv_invalid");
+    return result;
+  }
+
+  async function analyzeSelectedCsvFiles() {
+    const input = document.getElementById("csvFileInput");
+    const files = input && input.files ? Array.from(input.files) : [];
+    if (!files.length) {
+      const result = { ok: false, files: [] };
+      renderCsvAnalysis(result);
+      setText("csvState", "csv_waiting");
+      return result;
+    }
+    const entries = await Promise.all(files.map(async (file) => {
+      return { name: file.name, text: await file.text() };
+    }));
+    return analyzeCsvTexts(entries);
   }
 
   function candidatePair(sample) {
@@ -528,11 +728,19 @@
         setText("statsRefreshState", error.message);
       });
     });
+    addClickListener("csvAnalyzeButton", () => {
+      analyzeSelectedCsvFiles().catch((error) => {
+        setText("csvState", "csv_error");
+        setText("csvValidationPanel", error.message);
+      });
+    });
 
     window.__RTCTrainingDashboardTestHooks = {
       checkService,
       loadLiveStats,
       clearLiveStats,
+      analyzeCsvTexts,
+      analyzeSelectedCsvFiles,
       getServiceState() {
         return document.getElementById("serviceState").textContent;
       },

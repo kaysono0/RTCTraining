@@ -131,6 +131,11 @@ async def test_dashboard_homepage_declares_complete_stats_surface(dashboard_clie
         "meshTopologyState",
         "meshTopology",
         "csvState",
+        "csvFileInput",
+        "csvAnalyzeButton",
+        "csvValidationPanel",
+        "csvComparisonTable",
+        "csvTrendComparison",
     ]:
         assert f'id="{element_id}"' in body
 
@@ -146,7 +151,8 @@ async def test_dashboard_homepage_declares_complete_stats_surface(dashboard_clie
         assert f'class="{class_name}"' in body
     assert 'id="nackSummary"' in body
 
-    table_headers = re.findall(r"<th>([^<]+)</th>", body)
+    stats_table = re.search(r'<table id="statsHistoryTable".*?</table>', body, re.S).group(0)
+    table_headers = re.findall(r"<th>([^<]+)</th>", stats_table)
     assert table_headers == [
         "Time",
         "Peer",
@@ -162,6 +168,19 @@ async def test_dashboard_homepage_declares_complete_stats_surface(dashboard_clie
         "Jitter",
         "Bitrate",
         "FPS",
+    ]
+    csv_table = re.search(r'<table id="csvComparisonTable".*?</table>', body, re.S).group(0)
+    assert re.findall(r"<th>([^<]+)</th>", csv_table) == [
+        "File",
+        "Samples",
+        "Room",
+        "Session",
+        "Peer",
+        "Remote",
+        "Avg RTT",
+        "Avg Loss",
+        "Avg Bitrate",
+        "Avg FPS",
     ]
     assert "window.__RTCTrainingDashboardInlineBootstrap" in body
     assert "window.__RTCTrainingDashboardInlineServiceCheckPath" in body
@@ -196,6 +215,8 @@ async def test_dashboard_static_assets_are_versioned_and_loadable(dashboard_clie
     assert "window.__RTCTrainingDashboardTestHooks" in js_body
     assert "loadLiveStats" in js_body
     assert "clearLiveStats" in js_body
+    assert "analyzeCsvTexts" in js_body
+    assert "REQUIRED_CSV_FIELDS" in js_body
     assert '"NACK Mode"' in js_body
 
 

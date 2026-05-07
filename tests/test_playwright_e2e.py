@@ -657,11 +657,12 @@ def test_dashboard_workstation_layout_fits_mobile_viewport(
         ".dashboard-latest-column",
         ".dashboard-side-column",
         ".dashboard-history-section",
+        ".dashboard-csv-section",
     ]:
         expect(page.locator(selector)).to_be_visible()
 
     assert page.evaluate("document.documentElement.scrollWidth") <= 390
-    assert page.locator(".dashboard-table-scroll").evaluate(
+    assert page.locator(".dashboard-history-section .dashboard-table-scroll").evaluate(
         "element => element.scrollWidth > element.clientWidth"
     )
     assert page.locator("#checkServiceButton").bounding_box()["width"] >= 340
@@ -789,6 +790,70 @@ def test_dashboard_latest_stats_uses_newest_sample_across_peer_pairs(
     expect(latest_text).to_contain_text("Charlie (peer-c) -> Dana (peer-d)", timeout=10000)
     expect(latest_text).to_contain_text("88 ms")
     expect(page.locator("#nackSummary")).to_have_text("NACK: disabled / 6")
+
+
+def test_dashboard_compares_multiple_csv_files(
+    browser_context,
+    dashboard_server,
+    webrtc_https_server,
+):
+    page = browser_context.new_page()
+
+    page.goto(f"{dashboard_server}/?webrtc_origin={webrtc_https_server}")
+    result = page.evaluate(
+        """
+        window.__RTCTrainingDashboardTestHooks.analyzeCsvTexts([
+          {
+            name: "nack_on.csv",
+            text: [
+              "sample_index,timestamp,room_id,test_session_id,peer_id,remote_peer_id,rtt_ms,packet_loss_rate,jitter_ms,bitrate_kbps,fps,nack_mode,abr_mode",
+              "1,1000,room1,s1,peer-a,peer-b,20,1,5,900,30,enabled,off",
+              "2,1001,room1,s1,peer-a,peer-b,30,3,7,700,28,enabled,off"
+            ].join("\\n")
+          },
+          {
+            name: "nack_off.csv",
+            text: [
+              "sample_index,timestamp,room_id,test_session_id,peer_id,remote_peer_id,rtt_ms,packet_loss_rate,jitter_ms,bitrate_kbps,fps,nack_mode,abr_mode",
+              "1,1000,room1,s2,peer-a,peer-b,60,8,12,500,20,disabled,off"
+            ].join("\\n")
+          }
+        ])
+        """
+    )
+
+    assert result["ok"] is True
+    assert result["files"][0]["sample_count"] == 2
+    assert result["files"][0]["avg_rtt_ms"] == 25
+    assert result["files"][1]["avg_packet_loss_rate"] == 8
+    expect(page.locator("#csvState")).to_have_text("csv_ready")
+    expect(page.locator("#csvValidationPanel")).to_contain_text("nack_on.csv: ok")
+    expect(page.locator("#csvComparisonTable tbody tr")).to_have_count(2)
+    expect(page.locator("#csvTrendComparison")).to_contain_text("RTT best: nack_on.csv")
+
+
+def test_dashboard_reports_csv_field_validation_errors(
+    browser_context,
+    dashboard_server,
+    webrtc_https_server,
+):
+    page = browser_context.new_page()
+
+    page.goto(f"{dashboard_server}/?webrtc_origin={webrtc_https_server}")
+    result = page.evaluate(
+        """
+        window.__RTCTrainingDashboardTestHooks.analyzeCsvTexts([
+          {
+            name: "broken.csv",
+            text: "sample_index,room_id\\n1,room1"
+          }
+        ])
+        """
+    )
+
+    assert result["ok"] is False
+    expect(page.locator("#csvState")).to_have_text("csv_invalid")
+    expect(page.locator("#csvValidationPanel")).to_contain_text("broken.csv: missing")
 
 
 def test_two_webrtc_pages_connect_and_render_remote_video(

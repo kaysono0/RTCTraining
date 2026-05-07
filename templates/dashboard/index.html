@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>RTCTraining Dashboard</title>
-    <link rel="stylesheet" href="/static/dashboard/dashboard.css?v=20260507-dashboard-workstation-layout">
+    <link rel="stylesheet" href="/static/dashboard/dashboard.css?v=20260507-dashboard-workstation-layout-csv-analysis">
   </head>
   <body>
     <main class="dashboard-shell">
@@ -92,8 +92,36 @@
           </table>
         </div>
       </section>
+      <section class="dashboard-csv-section">
+        <h2>CSV Analysis</h2>
+        <div class="csv-controls">
+          <input id="csvFileInput" type="file" accept=".csv,text/csv" multiple aria-label="CSV files">
+          <button id="csvAnalyzeButton" type="button">Analyze CSV</button>
+        </div>
+        <div id="csvValidationPanel" class="csv-validation-panel"></div>
+        <div class="dashboard-table-scroll">
+          <table id="csvComparisonTable">
+            <thead>
+              <tr>
+                <th>File</th>
+                <th>Samples</th>
+                <th>Room</th>
+                <th>Session</th>
+                <th>Peer</th>
+                <th>Remote</th>
+                <th>Avg RTT</th>
+                <th>Avg Loss</th>
+                <th>Avg Bitrate</th>
+                <th>Avg FPS</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="csvTrendComparison" class="csv-trend-comparison"></div>
+      </section>
     </main>
-    <script src="/static/dashboard/dashboard.js?v=20260507-mesh-topology-nack-mode-workstation-layout"></script>
+    <script src="/static/dashboard/dashboard.js?v=20260507-mesh-topology-nack-mode-workstation-layout-csv-analysis"></script>
     <script>
       (function () {
         window.__RTCTrainingDashboardInlineBootstrap = true;

@@ -48,7 +48,8 @@ h2 {
 }
 
 button,
-input {
+input,
+select {
   min-height: 40px;
   border: 1px solid #b7c6cc;
   border-radius: 6px;
@@ -62,7 +63,8 @@ button {
   cursor: pointer;
 }
 
-input {
+input,
+select {
   width: 100%;
   padding: 0 12px;
 }
@@ -101,6 +103,7 @@ input {
 .dashboard-summary-strip article,
 .dashboard-latest-column,
 .dashboard-history-section,
+.dashboard-csv-section,
 .status-panel {
   border: 1px solid #d3dee3;
   border-radius: 8px;
@@ -137,9 +140,30 @@ input {
 }
 
 .dashboard-latest-column,
-.dashboard-history-section {
+.dashboard-history-section,
+.dashboard-csv-section {
   min-width: 0;
   padding: 16px;
+}
+
+.dashboard-csv-section {
+  margin-top: 16px;
+}
+
+.csv-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.csv-validation-panel,
+.csv-trend-comparison {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0;
+  color: #53636b;
+  font-size: 13px;
 }
 
 .status-panel {
@@ -196,8 +220,17 @@ input {
   table-layout: fixed;
 }
 
+#csvComparisonTable {
+  min-width: 920px;
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
 #statsHistoryTable th,
-#statsHistoryTable td {
+#statsHistoryTable td,
+#csvComparisonTable th,
+#csvComparisonTable td {
   padding: 8px;
   border-top: 1px solid #d3dee3;
   overflow-wrap: anywhere;
@@ -205,7 +238,8 @@ input {
   vertical-align: top;
 }
 
-#statsHistoryTable th {
+#statsHistoryTable th,
+#csvComparisonTable th {
   position: sticky;
   top: 0;
   z-index: 1;
@@ -230,7 +264,8 @@ input {
   }
 
   button,
-  input {
+  input,
+  select {
     width: 100%;
   }
 
@@ -251,6 +286,10 @@ input {
 
   .dashboard-latest-column {
     order: -1;
+  }
+
+  .csv-controls {
+    grid-template-columns: 1fr;
   }
 
   #latestStatsPanel {
