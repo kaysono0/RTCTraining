@@ -287,7 +287,10 @@
   async function createOffer(remotePeerId) {
     const peerConnection = ensurePeerConnection(remotePeerId);
     const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
+    const localOffer = window.RTCTrainingNack
+      ? window.RTCTrainingNack.prepareLocalDescription(offer)
+      : offer;
+    await peerConnection.setLocalDescription(localOffer);
     await sendSignal(remotePeerId, "offer", peerConnection.localDescription.toJSON());
     const offerSummary = summarizeSessionDescription(peerConnection.localDescription);
     shared.addTimelineEvent("sent_offer", {
@@ -319,7 +322,10 @@
     });
 
     const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
+    const localAnswer = window.RTCTrainingNack
+      ? window.RTCTrainingNack.prepareLocalDescription(answer)
+      : answer;
+    await peerConnection.setLocalDescription(localAnswer);
     await sendSignal(remotePeerId, "answer", peerConnection.localDescription.toJSON());
     const answerSummary = summarizeSessionDescription(peerConnection.localDescription);
     shared.addTimelineEvent("sent_answer", {

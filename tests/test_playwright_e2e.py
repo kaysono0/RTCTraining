@@ -149,6 +149,101 @@ def test_webrtc_page_can_start_media_join_and_leave_room(browser_context, webrtc
     expect(page.locator("#connectionState")).to_have_text("left")
 
 
+def test_webrtc_page_exposes_nack_mode_control_and_sdp_munging(
+    browser_context,
+    webrtc_https_server,
+):
+    page = browser_context.new_page()
+
+    page.goto(webrtc_https_server)
+
+    expect(page.locator("#nackModeState")).to_have_text("nack_enabled")
+    assert page.evaluate("window.__RTCTrainingTestHooks.getNackMode()") == "enabled"
+
+    page.select_option("#nackModeSelect", "disabled")
+
+    expect(page.locator("#nackModeState")).to_have_text("nack_disabled")
+    result = page.evaluate(
+        """
+        () => {
+          const input = [
+            "v=0",
+            "m=audio 9 UDP/TLS/RTP/SAVPF 111",
+            "a=rtcp-fb:111 nack",
+            "m=video 9 UDP/TLS/RTP/SAVPF 96",
+            "a=rtcp-fb:96 nack",
+            "a=rtcp-fb:96 nack pli",
+            "a=rtcp-fb:96 goog-remb"
+          ].join("\\r\\n");
+          return window.__RTCTrainingTestHooks.mungeNackSdp(input);
+        }
+        """
+    )
+
+    assert page.evaluate("window.__RTCTrainingTestHooks.getNackMode()") == "disabled"
+    assert "m=audio" in result
+    assert "a=rtcp-fb:111 nack" in result
+    assert "m=video" in result
+    assert "a=rtcp-fb:96 nack" not in result
+    assert "a=rtcp-fb:96 nack pli" not in result
+    assert "a=rtcp-fb:96 goog-remb" in result
+
+
+def test_webrtc_hooks_survive_legacy_html_missing_nack_controls(
+    browser_context,
+    webrtc_https_server,
+):
+    page = browser_context.new_page()
+    page_errors = []
+    page.on("pageerror", lambda error: page_errors.append(str(error)))
+    page.route(
+        re.compile(r".*/legacy-webrtc(?:\?.*)?$"),
+        lambda route: route.fulfill(
+            status=200,
+            content_type="text/html",
+            body="""
+            <!doctype html>
+            <html lang="zh-CN">
+              <body>
+                <p id="connectionState">idle</p>
+                <input id="roomIdInput" value="room1">
+                <input id="displayNameInput" value="Learner">
+                <button id="startMediaButton" type="button">Start Media</button>
+                <button id="joinRoomButton" type="button">Join</button>
+                <button id="leaveRoomButton" type="button">Leave</button>
+                <video id="localVideo"></video>
+                <div id="remoteVideos"></div>
+                <ol id="timeline"></ol>
+                <script src="/static/webrtc/chat_real_shared.js?v=legacy-html-contract"></script>
+                <script src="/static/webrtc/chat_real_nack.js?v=legacy-html-contract"></script>
+                <script src="/static/webrtc/chat_real_session.js?v=legacy-html-contract"></script>
+                <script src="/static/webrtc/chat_real_stats.js?v=legacy-html-contract"></script>
+                <script src="/static/webrtc/chat_real_bootstrap.js?v=legacy-html-contract"></script>
+              </body>
+            </html>
+            """,
+        ),
+    )
+
+    page.goto(f"{webrtc_https_server}/legacy-webrtc")
+    page.wait_for_function(
+        """
+        () => {
+          const hooks = window.__RTCTrainingTestHooks;
+          return hooks &&
+            typeof hooks.getNackMode === "function" &&
+            typeof hooks.setNackMode === "function" &&
+            typeof hooks.mungeNackSdp === "function";
+        }
+        """,
+        timeout=10000,
+    )
+
+    assert page.evaluate("window.__RTCTrainingTestHooks.setNackMode('disabled')") == "disabled"
+    assert page.evaluate("window.__RTCTrainingTestHooks.getNackMode()") == "disabled"
+    assert page_errors == []
+
+
 def test_dashboard_checks_webrtc_service_from_independent_port(
     browser_context,
     dashboard_server,

@@ -15,7 +15,8 @@
     timeline: [],
     localStream: null,
     pollingTimer: null,
-    localDisplayName: "Learner"
+    localDisplayName: "Learner",
+    nackMode: "enabled"
   };
 
   function setConnectionState(nextState) {

@@ -190,6 +190,7 @@
       ["Frames", `${formatMetric(metric(latest, "frames_sent"), "")} sent / ${formatMetric(metric(latest, "frames_received"), "")} recv`],
       ["Dropped", formatMetric(metric(latest, "frames_dropped"), "")],
       ["Codec", formatMetric(metric(latest, "codec"), "")],
+      ["NACK Mode", formatMetric(metric(latest, "nack_mode"), "")],
       ["Recovery", `NACK ${formatMetric(metric(latest, "nack_count"), "")} / PLI ${formatMetric(metric(latest, "pli_count"), "")} / FIR ${formatMetric(metric(latest, "fir_count"), "")}`],
       ["Missing Fields", missing.length ? missing.join(", ") : "none"]
     ];

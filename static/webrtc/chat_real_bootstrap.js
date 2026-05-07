@@ -1,15 +1,37 @@
 function bootstrapRTCTraining() {
   const shared = window.RTCTrainingShared;
   const session = window.RTCTrainingSession;
+  const nack = window.RTCTrainingNack;
 
-  document.getElementById("startMediaButton").addEventListener("click", () => {
+  function addClickListener(id, callback) {
+    const element = document.getElementById(id);
+    if (element) {
+      element.addEventListener("click", callback);
+    }
+  }
+
+  if (nack) {
+    nack.renderNackMode();
+    const nackModeSelect = document.getElementById("nackModeSelect");
+    if (nackModeSelect) {
+      nackModeSelect.addEventListener("change", (event) => {
+        nack.setNackMode(event.target.value);
+        shared.addTimelineEvent("nack_mode_changed", {
+          category: "media",
+          summary: shared.state.nackMode
+        });
+      });
+    }
+  }
+
+  addClickListener("startMediaButton", () => {
     session.startMedia().catch((error) => {
       shared.setConnectionState("failed");
       shared.addTimelineEvent("media_error", { category: "error", summary: error.message });
     });
   });
 
-  document.getElementById("joinRoomButton").addEventListener("click", () => {
+  addClickListener("joinRoomButton", () => {
     const roomId = document.getElementById("roomIdInput").value;
     const displayName = document.getElementById("displayNameInput").value;
     session.joinRoom(roomId, displayName).catch((error) => {
@@ -18,7 +40,7 @@ function bootstrapRTCTraining() {
     });
   });
 
-  document.getElementById("leaveRoomButton").addEventListener("click", () => {
+  addClickListener("leaveRoomButton", () => {
     session.leaveRoom().catch((error) => {
       shared.addTimelineEvent("leave_room_failed", { category: "error", summary: error.message });
     });
@@ -59,6 +81,15 @@ function bootstrapRTCTraining() {
     },
     getStatsUploadedCount() {
       return shared.state.statsUploadedCount;
+    },
+    getNackMode() {
+      return shared.state.nackMode;
+    },
+    setNackMode(mode) {
+      return nack.setNackMode(mode);
+    },
+    mungeNackSdp(sdp) {
+      return nack.mungeSdp(sdp);
     },
     getLatestStats() {
       return shared.state.latestStats;

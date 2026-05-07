@@ -25,6 +25,8 @@ def stats_payload(**overrides):
             "frame_width": 640,
             "frame_height": 480,
             "codec": "VP8",
+            "nack_enabled": False,
+            "nack_mode": "disabled",
         },
     }
     payload.update(overrides)
@@ -183,7 +185,9 @@ async def test_stats_export_csv_returns_room_scoped_history(client):
         "frame_height,codec,local_candidate_type,remote_candidate_type,"
         "candidate_pair_protocol,packets_sent,packets_received,bytes_sent,"
         "bytes_received,frames_sent,frames_received,frames_encoded,frames_decoded,"
-        "frames_dropped,nack_count,pli_count,fir_count,quality_limitation_reason"
+        "frames_dropped,nack_enabled,nack_mode,nack_count,pli_count,fir_count,"
+        "quality_limitation_reason"
     )
     assert ",room1," in body
+    assert ",False,disabled," in body
     assert ",room2," not in body

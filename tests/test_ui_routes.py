@@ -23,9 +23,15 @@ async def test_webrtc_homepage_loads_experiment_shell(webrtc_client):
     body = await response.text()
 
     assert response.status == 200
+    assert response.headers["Cache-Control"] == "no-store"
     assert "RTCTraining" in body
-    assert "chat_real_stats.js" in body
-    assert "chat_real_bootstrap.js" in body
+    assert re.search(r'src="/static/webrtc/chat_real_nack\.js\?v=[^"]*nack-mode[^"]*"', body)
+    assert re.search(r'src="/static/webrtc/chat_real_session\.js\?v=[^"]*nack-mode[^"]*"', body)
+    assert re.search(r'src="/static/webrtc/chat_real_stats\.js\?v=[^"]*nack-mode[^"]*"', body)
+    assert re.search(r'src="/static/webrtc/chat_real_bootstrap\.js\?v=[^"]*nack-mode[^"]*"', body)
+    assert "chat_real_nack.js" in body
+    assert 'id="nackModeSelect"' in body
+    assert 'id="nackModeState"' in body
     assert "window.__RTCTrainingTestHooks" in body
 
 
@@ -35,6 +41,7 @@ async def test_webrtc_homepage_loads_experiment_shell(webrtc_client):
     [
         ("chat_real_bootstrap.js", "bootstrapRTCTraining"),
         ("chat_real_stats.js", "RTCTrainingStats"),
+        ("chat_real_nack.js", "RTCTrainingNack"),
     ],
 )
 async def test_webrtc_static_asset_loads(webrtc_client, asset, expected):
@@ -110,7 +117,7 @@ async def test_dashboard_homepage_cache_contract(dashboard_client):
     assert response.status == 200
     assert response.headers["Cache-Control"] == "no-store"
     assert re.search(r'href="/static/dashboard/dashboard\.css\?v=[^"]+"', body)
-    assert re.search(r'src="/static/dashboard/dashboard\.js\?v=[^"]*mesh-topology[^"]*"', body)
+    assert re.search(r'src="/static/dashboard/dashboard\.js\?v=[^"]*mesh-topology[^"]*nack-mode[^"]*"', body)
 
 
 @pytest.mark.asyncio
@@ -131,6 +138,7 @@ async def test_dashboard_static_assets_are_versioned_and_loadable(dashboard_clie
     assert "window.__RTCTrainingDashboardTestHooks" in js_body
     assert "loadLiveStats" in js_body
     assert "clearLiveStats" in js_body
+    assert '"NACK Mode"' in js_body
 
 
 @pytest.mark.asyncio
@@ -195,3 +203,21 @@ async def test_webrtc_stats_uploader_sends_browser_sample_time(webrtc_client):
     body = await response.text()
 
     assert "timestamp: Date.now() / 1000" in body
+
+
+@pytest.mark.asyncio
+async def test_webrtc_stats_uploader_records_nack_mode(webrtc_client):
+    response = await webrtc_client.get("/static/webrtc/chat_real_stats.js")
+    body = await response.text()
+
+    assert 'nack_enabled: shared.state.nackMode === "enabled"' in body
+    assert "nack_mode: shared.state.nackMode" in body
+
+
+@pytest.mark.asyncio
+async def test_webrtc_session_applies_nack_sdp_munging(webrtc_client):
+    response = await webrtc_client.get("/static/webrtc/chat_real_session.js")
+    body = await response.text()
+
+    assert "RTCTrainingNack.prepareLocalDescription(offer)" in body
+    assert "RTCTrainingNack.prepareLocalDescription(answer)" in body

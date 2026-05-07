@@ -34,8 +34,17 @@ body {
 }
 
 .room-controls input,
+.room-controls select,
 .room-controls button {
   font: inherit;
+  min-height: 36px;
+}
+
+#nackModeState {
+  align-items: center;
+  color: #475569;
+  display: inline-flex;
+  font-size: 13px;
   min-height: 36px;
 }
 

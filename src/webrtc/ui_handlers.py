@@ -12,4 +12,7 @@ class UIHandlers:
         self.static_dir = PROJECT_ROOT / "static" / "webrtc"
 
     async def index(self, request):
-        return web.FileResponse(self.template_path)
+        return web.FileResponse(
+            self.template_path,
+            headers={"Cache-Control": "no-store"},
+        )
