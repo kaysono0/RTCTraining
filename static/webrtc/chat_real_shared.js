@@ -18,7 +18,18 @@
     localDisplayName: "Learner",
     nackMode: "enabled",
     bitrateMode: "auto",
-    senderMaxBitrateBps: null
+    senderMaxBitrateBps: null,
+    abrMode: "off",
+    abrTargetBitrateBps: null,
+    abrLastDecision: "off",
+    abrConfig: {
+      minBitrateKbps: 300,
+      maxBitrateKbps: 1500,
+      stepKbps: 150,
+      intervalMs: 1000,
+      lossThresholdPercent: 5,
+      rttThresholdMs: 300
+    }
   };
 
   function setConnectionState(nextState) {

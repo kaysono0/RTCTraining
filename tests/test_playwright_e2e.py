@@ -293,6 +293,49 @@ def test_webrtc_page_applies_manual_sender_bitrate(browser_context, webrtc_https
     assert page.evaluate("window.__RTCTrainingTestHooks.getSenderMaxBitrateBps()") is None
 
 
+def test_webrtc_page_runs_simplified_abr_decisions(browser_context, webrtc_https_server):
+    page = browser_context.new_page()
+
+    page.goto(webrtc_https_server)
+
+    expect(page.locator("#abrModeState")).to_have_text("abr_off")
+    assert page.evaluate("window.__RTCTrainingTestHooks.setAbrMode('on')") == "on"
+    expect(page.locator("#abrModeState")).to_have_text("abr_on_hold")
+    assert page.evaluate("window.__RTCTrainingTestHooks.getAbrMode()") == "on"
+    assert page.evaluate("window.__RTCTrainingTestHooks.getAbrTargetBitrateBps()") == 1500000
+
+    decrease = page.evaluate(
+        """
+        window.__RTCTrainingTestHooks.runAbrDecision({
+          packet_loss_rate: 7,
+          rtt_ms: 350,
+          fps: 30
+        })
+        """
+    )
+    assert decrease["decision"] == "decrease"
+    assert decrease["target_bitrate_bps"] == 1350000
+    assert page.evaluate("window.__RTCTrainingTestHooks.getSenderMaxBitrateBps()") == 1350000
+    expect(page.locator("#abrModeState")).to_have_text("abr_on_decrease")
+
+    increase = page.evaluate(
+        """
+        window.__RTCTrainingTestHooks.runAbrDecision({
+          packet_loss_rate: 1,
+          rtt_ms: 100,
+          fps: 30
+        })
+        """
+    )
+    assert increase["decision"] == "increase"
+    assert increase["target_bitrate_bps"] == 1500000
+    assert page.evaluate("window.__RTCTrainingTestHooks.getAbrLastDecision()") == "increase"
+    expect(page.locator("#abrModeState")).to_have_text("abr_on_increase")
+
+    assert page.evaluate("window.__RTCTrainingTestHooks.setAbrMode('off')") == "off"
+    expect(page.locator("#abrModeState")).to_have_text("abr_off")
+
+
 def test_webrtc_hooks_survive_legacy_html_missing_nack_controls(
     browser_context,
     webrtc_https_server,

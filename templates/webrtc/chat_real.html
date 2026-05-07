@@ -36,6 +36,34 @@
           </label>
           <button id="applyBitrateButton" type="button">Apply</button>
           <span id="bitrateModeState">bitrate_auto</span>
+          <label>
+            <span>ABR</span>
+            <select id="abrModeSelect" aria-label="ABR mode">
+              <option value="off" selected>ABR off</option>
+              <option value="on">ABR on</option>
+            </select>
+          </label>
+          <label>
+            <span>ABR min</span>
+            <input id="abrMinBitrateInput" type="number" min="1" step="1" value="300" aria-label="ABR min bitrate kbps">
+          </label>
+          <label>
+            <span>ABR max</span>
+            <input id="abrMaxBitrateInput" type="number" min="1" step="1" value="1500" aria-label="ABR max bitrate kbps">
+          </label>
+          <label>
+            <span>ABR step</span>
+            <input id="abrStepKbpsInput" type="number" min="1" step="1" value="150" aria-label="ABR step kbps">
+          </label>
+          <label>
+            <span>Loss %</span>
+            <input id="abrLossThresholdInput" type="number" min="0" step="0.1" value="5" aria-label="ABR loss threshold percent">
+          </label>
+          <label>
+            <span>RTT ms</span>
+            <input id="abrRttThresholdInput" type="number" min="1" step="1" value="300" aria-label="ABR RTT threshold ms">
+          </label>
+          <span id="abrModeState">abr_off</span>
         </div>
         <div class="mobile-action-bar" aria-label="Room actions">
           <button id="startMediaButton" type="button">Start Media</button>
@@ -60,7 +88,7 @@
     </main>
     <script src="/static/webrtc/chat_real_shared.js?v=20260507-nack-mode-manual-bitrate-mobile-media"></script>
     <script src="/static/webrtc/chat_real_nack.js?v=20260507-nack-mode-manual-bitrate-mobile-media"></script>
-    <script src="/static/webrtc/chat_real_bitrate.js?v=20260507-manual-bitrate-mobile-media"></script>
+    <script src="/static/webrtc/chat_real_bitrate.js?v=20260507-manual-bitrate-abr-mobile-media"></script>
     <script src="/static/webrtc/chat_real_session.js?v=20260507-nack-mode-manual-bitrate-mobile-media"></script>
     <script src="/static/webrtc/chat_real_stats.js?v=20260507-nack-mode-manual-bitrate-mobile-media"></script>
     <script src="/static/webrtc/chat_real_bootstrap.js?v=20260507-nack-mode-manual-bitrate-mobile-media"></script>

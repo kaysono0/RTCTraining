@@ -37,6 +37,13 @@ async def test_webrtc_homepage_loads_experiment_shell(webrtc_client):
     assert 'id="senderBitrateInput"' in body
     assert 'id="applyBitrateButton"' in body
     assert 'id="bitrateModeState"' in body
+    assert 'id="abrModeSelect"' in body
+    assert 'id="abrMinBitrateInput"' in body
+    assert 'id="abrMaxBitrateInput"' in body
+    assert 'id="abrStepKbpsInput"' in body
+    assert 'id="abrLossThresholdInput"' in body
+    assert 'id="abrRttThresholdInput"' in body
+    assert 'id="abrModeState"' in body
     assert "window.__RTCTrainingTestHooks" in body
     assert "chat_real_bitrate.js" in body
 
@@ -259,6 +266,17 @@ async def test_webrtc_stats_uploader_records_sender_bitrate_config(webrtc_client
     assert response.status == 200
     assert "bitrate_mode: shared.state.bitrateMode" in body
     assert "sender_max_bitrate_bps: shared.state.senderMaxBitrateBps" in body
+
+
+@pytest.mark.asyncio
+async def test_webrtc_stats_uploader_records_abr_config(webrtc_client):
+    response = await webrtc_client.get("/static/webrtc/chat_real_stats.js")
+    body = await response.text()
+
+    assert response.status == 200
+    assert "abr_mode: shared.state.abrMode" in body
+    assert "abr_target_bitrate_bps: shared.state.abrTargetBitrateBps" in body
+    assert "abr_decision: shared.state.abrLastDecision" in body
 
 
 @pytest.mark.asyncio

@@ -67,6 +67,9 @@
       nack_mode: shared.state.nackMode,
       bitrate_mode: shared.state.bitrateMode,
       sender_max_bitrate_bps: shared.state.senderMaxBitrateBps,
+      abr_mode: shared.state.abrMode,
+      abr_target_bitrate_bps: shared.state.abrTargetBitrateBps,
+      abr_decision: shared.state.abrLastDecision,
       nack_count: 0,
       pli_count: 0,
       fir_count: 0

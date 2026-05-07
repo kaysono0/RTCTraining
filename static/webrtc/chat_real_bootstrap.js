@@ -27,6 +27,7 @@ function bootstrapRTCTraining() {
 
   if (bitrate) {
     bitrate.renderBitrateMode();
+    bitrate.renderAbrMode();
     addClickListener("applyBitrateButton", () => {
       const input = document.getElementById("senderBitrateInput");
       bitrate.setSenderBitrateKbps(input ? input.value : "").then((mode) => {
@@ -41,6 +42,22 @@ function bootstrapRTCTraining() {
         });
       });
     });
+    const abrModeSelect = document.getElementById("abrModeSelect");
+    if (abrModeSelect) {
+      abrModeSelect.addEventListener("change", (event) => {
+        bitrate.setAbrMode(event.target.value).then((mode) => {
+          shared.addTimelineEvent("abr_mode_changed", {
+            category: "media",
+            summary: mode
+          });
+        }).catch((error) => {
+          shared.addTimelineEvent("abr_apply_failed", {
+            category: "error",
+            summary: error.message
+          });
+        });
+      });
+    }
   }
 
   addClickListener("startMediaButton", () => {
@@ -125,6 +142,21 @@ function bootstrapRTCTraining() {
     },
     getSenderMaxBitrateBps() {
       return shared.state.senderMaxBitrateBps;
+    },
+    setAbrMode(mode) {
+      return bitrate.setAbrMode(mode);
+    },
+    runAbrDecision(metrics) {
+      return bitrate.runAbrDecision(metrics);
+    },
+    getAbrMode() {
+      return shared.state.abrMode;
+    },
+    getAbrTargetBitrateBps() {
+      return shared.state.abrTargetBitrateBps;
+    },
+    getAbrLastDecision() {
+      return shared.state.abrLastDecision;
     },
     startMedia() {
       return session.startMedia();
