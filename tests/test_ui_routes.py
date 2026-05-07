@@ -32,6 +32,10 @@ async def test_webrtc_homepage_loads_experiment_shell(webrtc_client):
     assert re.search(r'src="/static/webrtc/chat_real_bootstrap\.js\?v=[^"]*nack-mode[^"]*mobile-media[^"]*"', body)
     assert "chat_real_nack.js" in body
     assert 'class="mobile-action-bar"' in body
+    assert 'class="control-group identity-control-group"' in body
+    assert 'class="control-group nack-control-group"' in body
+    assert 'class="control-group bitrate-control-group"' in body
+    assert 'class="control-group abr-control-group"' in body
     assert 'id="nackModeSelect"' in body
     assert 'id="nackModeState"' in body
     assert 'id="senderBitrateInput"' in body

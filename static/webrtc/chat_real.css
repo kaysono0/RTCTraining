@@ -17,8 +17,9 @@ body {
   align-items: flex-start;
   background: #ffffff;
   border-bottom: 1px solid #d8dee9;
-  display: flex;
+  display: grid;
   gap: 24px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   justify-content: space-between;
   padding: 16px 24px;
 }
@@ -29,19 +30,50 @@ body {
 }
 
 .room-controls {
-  display: flex;
-  gap: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(240px, 1.25fr) minmax(150px, 0.75fr) minmax(240px, 1fr);
   min-width: 0;
 }
 
-.room-controls label {
+.control-group {
+  align-items: end;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-sizing: border-box;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.identity-control-group {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.nack-control-group {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.bitrate-control-group {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.abr-control-group {
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(90px, 1.15fr) repeat(5, minmax(68px, 1fr)) auto;
+}
+
+.control-group label {
   color: #475569;
   display: grid;
   font-size: 12px;
   gap: 4px;
+  min-width: 0;
 }
 
-.room-controls label span {
+.control-group label span {
   line-height: 1.2;
 }
 
@@ -59,8 +91,10 @@ body {
   border: 1px solid #cbd5e1;
   border-radius: 6px;
   box-sizing: border-box;
-  max-width: 160px;
+  max-width: none;
+  min-width: 0;
   padding: 0 10px;
+  width: 100%;
 }
 
 #applyBitrateButton {
@@ -71,13 +105,14 @@ body {
 }
 
 #nackModeState,
-#bitrateModeState {
+#bitrateModeState,
+#abrModeState {
   align-items: center;
   color: #475569;
   display: inline-flex;
   font-size: 13px;
   min-height: 36px;
-  padding-top: 16px;
+  overflow-wrap: anywhere;
 }
 
 .mobile-action-bar {
@@ -260,7 +295,7 @@ video {
 
 @media (max-width: 700px) {
   body {
-    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+    padding-bottom: calc(88px + env(safe-area-inset-bottom));
   }
 
   .topbar {
@@ -271,18 +306,20 @@ video {
 
   .room-controls {
     display: grid;
-    gap: 10px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    grid-template-columns: 1fr;
     width: 100%;
   }
 
-  .room-controls label {
-    min-width: 0;
+  .control-group {
+    padding: 10px;
   }
 
-  .room-controls label:last-of-type,
-  #nackModeState {
-    grid-column: span 1;
+  .identity-control-group,
+  .nack-control-group,
+  .bitrate-control-group,
+  .abr-control-group {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .room-controls input,
@@ -294,9 +331,13 @@ video {
   }
 
   #nackModeState,
-  #bitrateModeState {
+  #bitrateModeState,
+  #abrModeState {
     align-self: end;
-    padding-top: 0;
+  }
+
+  #abrModeState {
+    grid-column: span 2;
   }
 
   .mobile-action-bar {

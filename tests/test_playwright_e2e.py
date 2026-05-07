@@ -155,9 +155,29 @@ def test_webrtc_mobile_controls_stay_visible(browser_context, webrtc_https_serve
 
     page.goto(webrtc_https_server)
 
+    expect(page.locator(".identity-control-group")).to_be_visible()
+    expect(page.locator(".nack-control-group")).to_be_visible()
+    expect(page.locator(".bitrate-control-group")).to_be_visible()
+    expect(page.locator(".abr-control-group")).to_be_visible()
+
+    for selector in (
+        ".identity-control-group",
+        ".nack-control-group",
+        ".bitrate-control-group",
+        ".abr-control-group",
+    ):
+        group_box = page.locator(selector).bounding_box()
+        assert group_box is not None
+        assert group_box["width"] <= 390
+
     action_bar = page.locator(".mobile-action-bar")
     expect(action_bar).to_be_visible()
     assert action_bar.evaluate("element => getComputedStyle(element).position") == "fixed"
+    action_bar_box = action_bar.bounding_box()
+    abr_box = page.locator(".abr-control-group").bounding_box()
+    assert action_bar_box is not None
+    assert abr_box is not None
+    assert abr_box["y"] + abr_box["height"] < action_bar_box["y"]
 
     for name in ("Start Media", "Join", "Leave"):
         button = page.get_by_role("button", name=name)
