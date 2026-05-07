@@ -86,6 +86,17 @@
     return (sample.metrics || {})[name];
   }
 
+  function newestSample(samples) {
+    return (samples || []).reduce((newest, sample) => {
+      if (!newest) {
+        return sample;
+      }
+      const newestOrder = newest.sample_index || newest.timestamp || 0;
+      const sampleOrder = sample.sample_index || sample.timestamp || 0;
+      return sampleOrder > newestOrder ? sample : newest;
+    }, null);
+  }
+
   function shortPeerId(peerId) {
     if (!peerId) {
       return "";
@@ -173,7 +184,7 @@
       return;
     }
     panel.innerHTML = "";
-    const latest = (samples || [])[0];
+    const latest = newestSample(samples);
     if (!latest) {
       setText("nackSummary", "NACK: -");
       return;

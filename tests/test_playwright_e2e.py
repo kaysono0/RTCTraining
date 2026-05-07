@@ -551,6 +551,129 @@ def test_dashboard_workstation_layout_fits_mobile_viewport(
     assert page.locator("#clearStatsButton").bounding_box()["width"] >= 340
 
 
+def test_dashboard_latest_stats_uses_newest_sample_across_peer_pairs(
+    browser_context,
+    dashboard_server,
+    webrtc_https_server,
+):
+    page = browser_context.new_page()
+    older_sample = {
+        "sample_index": 10,
+        "timestamp": 1778140800,
+        "room_id": "latest-room",
+        "peer_id": "peer-a",
+        "remote_peer_id": "peer-b",
+        "metrics": {
+            "connection_state": "connected",
+            "ice_connection_state": "connected",
+            "rtt_ms": 10,
+            "packets_sent": 100,
+            "packets_received": 100,
+            "packets_lost": 0,
+            "jitter_ms": 1,
+            "bitrate_kbps": 100,
+            "fps": 24,
+            "frame_width": 320,
+            "frame_height": 180,
+            "bytes_sent": 1000,
+            "bytes_received": 1000,
+            "frames_sent": 24,
+            "frames_received": 24,
+            "frames_decoded": 24,
+            "frames_dropped": 0,
+            "codec": "video/VP8",
+            "nack_enabled": True,
+            "nack_mode": "enabled",
+            "nack_count": 1,
+        },
+    }
+    newest_sample = {
+        "sample_index": 11,
+        "timestamp": 1778140801,
+        "room_id": "latest-room",
+        "peer_id": "peer-c",
+        "remote_peer_id": "peer-d",
+        "metrics": {
+            "connection_state": "connected",
+            "ice_connection_state": "connected",
+            "rtt_ms": 88,
+            "packets_sent": 200,
+            "packets_received": 190,
+            "packets_lost": 3,
+            "jitter_ms": 7,
+            "bitrate_kbps": 900,
+            "fps": 30,
+            "frame_width": 640,
+            "frame_height": 360,
+            "bytes_sent": 2000,
+            "bytes_received": 1900,
+            "frames_sent": 30,
+            "frames_received": 29,
+            "frames_decoded": 29,
+            "frames_dropped": 1,
+            "codec": "video/VP8",
+            "nack_enabled": False,
+            "nack_mode": "disabled",
+            "nack_count": 6,
+        },
+    }
+    page.route(
+        re.compile(r".*/api/webrtc/members\?.*"),
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            json={
+                "ok": True,
+                "data": {
+                    "rooms": {
+                        "latest-room": {
+                            "members": [
+                                {"peer_id": "peer-a", "display_name": "Alice"},
+                                {"peer_id": "peer-b", "display_name": "Bob"},
+                                {"peer_id": "peer-c", "display_name": "Charlie"},
+                                {"peer_id": "peer-d", "display_name": "Dana"},
+                            ]
+                        }
+                    }
+                },
+            },
+        ),
+    )
+    page.route(
+        re.compile(r".*/api/webrtc/dashboard/snapshot\?.*"),
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            json={
+                "ok": True,
+                "data": {
+                    "room_id": "latest-room",
+                    "server_time": 1778140802,
+                    "members": [
+                        {"peer_id": "peer-a", "display_name": "Alice"},
+                        {"peer_id": "peer-b", "display_name": "Bob"},
+                        {"peer_id": "peer-c", "display_name": "Charlie"},
+                        {"peer_id": "peer-d", "display_name": "Dana"},
+                    ],
+                    "peers": [
+                        {"peer_id": "peer-a", "remote_peer_id": "peer-b"},
+                        {"peer_id": "peer-c", "remote_peer_id": "peer-d"},
+                    ],
+                    "latest": [older_sample, newest_sample],
+                    "history": [older_sample, newest_sample],
+                },
+            },
+        ),
+    )
+
+    page.goto(f"{dashboard_server}/?webrtc_origin={webrtc_https_server}&room_id=latest-room")
+
+    latest_text = page.locator("#latestStatsPanel")
+    expect(latest_text).to_contain_text("Charlie (peer-c) -> Dana (peer-d)", timeout=10000)
+    expect(latest_text).to_contain_text("88 ms")
+    expect(page.locator("#nackSummary")).to_have_text("NACK: disabled / 6")
+
+
 def test_two_webrtc_pages_connect_and_render_remote_video(
     browser_context,
     webrtc_https_server,
