@@ -53,6 +53,9 @@ async def test_dashboard_homepage_loads_independent_shell(dashboard_client):
     assert "WebRTC Service" in body
     assert "statsRoomInput" in body
     assert "statsState" in body
+    assert "statsRefreshState" in body
+    assert "clearStatsButton" in body
+    assert 'src="/static/dashboard/dashboard.js?v=' in body
     assert "peerPairList" in body
     assert "latestStatsPanel" in body
     assert "statsHistoryTable" in body
@@ -79,7 +82,24 @@ async def test_dashboard_stats_proxy_routes_exist(dashboard_client):
     peers = await dashboard_client.get(
         "/api/webrtc/stats/peers?origin=https://localhost:8080&room_id=room1"
     )
+    snapshot = await dashboard_client.get(
+        "/api/webrtc/dashboard/snapshot?origin=https://localhost:8080&room_id=room1"
+    )
+    clear_stats = await dashboard_client.post(
+        "/api/webrtc/clear_stats?origin=https://localhost:8080",
+        json={"room_id": "room1"},
+    )
 
     assert stats.status != 404
     assert history.status != 404
     assert peers.status != 404
+    assert snapshot.status != 404
+    assert clear_stats.status != 404
+
+
+@pytest.mark.asyncio
+async def test_webrtc_stats_uploader_sends_browser_sample_time(webrtc_client):
+    response = await webrtc_client.get("/static/webrtc/chat_real_stats.js")
+    body = await response.text()
+
+    assert "timestamp: Date.now() / 1000" in body

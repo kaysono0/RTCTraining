@@ -93,6 +93,7 @@ flowchart TB
 | `GET` | `/stats` | 查询 latest stats |
 | `GET` | `/stats/history` | 查询历史 stats |
 | `GET` | `/stats/peers` | 查询已观察到的 peer pair |
+| `GET` | `/dashboard/snapshot` | 查询指定 room 的 Dashboard 原子快照 |
 | `GET` | `/stats/export.csv` | 导出 room 维度 CSV |
 | `POST` | `/clear_stats` | 清理指定 room 的 stats |
 
@@ -106,6 +107,8 @@ flowchart TB
 | `GET` | `/api/webrtc/stats` | 代理 WebRTC `/stats` |
 | `GET` | `/api/webrtc/stats/history` | 代理 WebRTC `/stats/history` |
 | `GET` | `/api/webrtc/stats/peers` | 代理 WebRTC `/stats/peers` |
+| `GET` | `/api/webrtc/dashboard/snapshot` | 代理 WebRTC `/dashboard/snapshot` |
+| `POST` | `/api/webrtc/clear_stats` | 代理 WebRTC `/clear_stats` |
 
 Dashboard 代理接口支持 `origin` 参数：
 
@@ -764,33 +767,109 @@ GET /api/webrtc/members?origin=<encoded_origin>
 - `serviceState = payload.error.code`
 - `roomSummary = 0 rooms`
 
-### 9.4 Live Stats 查询
+### 9.4 Live Stats 快照查询
 
-`loadLiveStats()` 请求顺序：
+Live Stats 使用 room 级 snapshot 查询，不在前端同时拼接 members、peers、latest、history 多个响应。
 
-1. `/api/webrtc/stats/peers`
-2. `/api/webrtc/stats`
-3. `/api/webrtc/stats/history`
+```text
+GET /api/webrtc/dashboard/snapshot?origin=<encoded_origin>&room_id=room1
+```
 
-如果 peer pair 为空：
+Dashboard 后端代理 WebRTC 服务：
 
+```text
+GET /dashboard/snapshot?room_id=room1
+```
+
+WebRTC 服务在同一个进程内读取 `RoomStore` 和 `StatsStore`，返回当前 room 的一致数据：
+
+```json
+{
+  "ok": true,
+  "data": {
+    "room_id": "room1",
+    "stats_revision": 12,
+    "server_time": 1778053000.123,
+    "members": [
+      {"peer_id": "peer-a", "display_name": "Alice"}
+    ],
+    "peers": [],
+    "latest": [],
+    "history": []
+  }
+}
+```
+
+字段规则：
+
+| 字段 | 说明 |
+| --- | --- |
+| `stats_revision` | room 级 stats 版本号。stats 写入和清理都会递增 |
+| `server_time` | WebRTC 服务生成的快照时间 |
+| `members` | 当前 room 成员，用于构建 `Alice (peer-...)` 标签 |
+| `peers` | 当前 stats 历史中观察到的 peer pair |
+| `latest` | 每个 peer pair 最新样本 |
+| `history` | 当前 room 最近历史样本 |
+
+前端只渲染 snapshot，不再把不同时间返回的多个响应混合到同一屏。
+
+如果 `peers` 为空：
+
+- 清空 peer pair 列表。
 - 清空 latest stats。
 - 清空 history table。
 - `statsState = service_online_but_no_stats`。
 
-如果三类请求都成功：
+如果 `peers` 非空：
 
 - 渲染 peer pair。
 - 渲染 latest stats。
 - 渲染最近 20 条 history。
 - `statsState = stats_online`。
 
-### 9.5 渲染策略
+### 9.5 Live Stats 刷新边界
+
+Dashboard 按数据所有权划分刷新范围：
+
+| 区域 | 刷新方式 | 说明 |
+| --- | --- | --- |
+| `serviceState` / `roomSummary` | 局部刷新 | 来自服务成员摘要，表示 WebRTC 服务是否可达 |
+| `Live Stats` 整区 | 全区刷新 | `statsState`、`statsRefreshState`、`peerPairList`、`latestStatsPanel`、`statsHistoryTable` 来自同一个 snapshot |
+| `CSV Analysis` | 局部刷新 | CSV 分析有独立数据来源 |
+
+Live Stats 前端维护最小状态：
+
+```javascript
+{
+  origin,
+  roomId,
+  requestSeq,
+  clearing,
+  snapshot,
+  statsState,
+  lastUpdatedAt
+}
+```
+
+每次 snapshot 请求都会生成新的 `requestSeq`。响应回来后，如果该响应不是当前最新请求，前端直接忽略，避免旧请求晚返回后覆盖清理后的空状态。
+
+清理当前 room stats 是一个完整事务：
+
+1. 设置 `clearing = true`。
+2. 递增 `requestSeq`，让清理前已发出的请求失效。
+3. 请求 `POST /api/webrtc/clear_stats`。
+4. WebRTC 服务清理指定 room 的 stats，并递增 `stats_revision`。
+5. Dashboard 用清理接口返回的 snapshot 渲染 Live Stats 整区。
+6. 设置 `clearing = false`，恢复轮询。
+
+清理期间轮询不能写入 Live Stats。任何清理前发出的 snapshot 响应，即使晚返回，也不能更新 DOM。
+
+### 9.6 渲染策略
 
 peer pair：
 
 ```text
-peer-a -> peer-b
+[last_sample: 2026/5/6 18:30:00] Alice (peer-a...) -> Bob (peer-b...)
 ```
 
 latest stats 当前取 `samples[0]` 渲染：
@@ -819,18 +898,30 @@ history table 当前展示最近 20 条，按最新在前渲染：
 | Bitrate | `metrics.bitrate_kbps` |
 | FPS | `metrics.fps` |
 
-空值显示为 `-`。
+peer 和 remote 使用成员别名映射。当前成员表没有对应别名时，显示短 ID。
 
-### 9.6 Dashboard 测试钩子
+时间显示规则：
+
+| 情况 | 显示 |
+| --- | --- |
+| `timestamp` 有值 | 本地时间字符串 |
+| `timestamp` 为空且有 `sample_index` | `unknown_time; sample #N` |
+| 两者都没有 | `unknown_time` |
+
+空指标值显示为 `-`。
+
+### 9.7 Dashboard 测试钩子
 
 `window.__RTCTrainingDashboardTestHooks`：
 
 | 方法 | 说明 |
 | --- | --- |
 | `checkService()` | 手动触发服务检查 |
-| `loadLiveStats()` | 手动触发 stats 查询 |
+| `loadLiveStats()` | 手动触发 snapshot 查询 |
+| `clearLiveStats()` | 清理当前 room stats 并重绘 Live Stats 整区 |
 | `getServiceState()` | 返回服务状态 |
 | `getStatsState()` | 返回 stats 状态 |
+| `getStatsRefreshState()` | 返回最近刷新信息 |
 | `getRoomSummary()` | 返回房间摘要 |
 
 ## 10. 端到端数据流程
@@ -1027,4 +1118,3 @@ make test-e2e
 3. NACK、bitrate、ABR 手工实验入口。
 4. 多 CSV 对比页面。
 5. Mesh 拓扑和每条边的 stats 展示。
-

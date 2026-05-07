@@ -363,9 +363,114 @@ def test_dashboard_renders_live_stats_after_two_pages_connect(
 
     expect(dashboard.locator("#statsState")).to_have_text("stats_online", timeout=10000)
     expect(dashboard.locator("#peerPairList li")).to_have_count(2, timeout=10000)
+    expect(dashboard.locator("#peerPairList")).to_contain_text("Alice (peer-", timeout=10000)
+    expect(dashboard.locator("#peerPairList")).to_contain_text("Bob (peer-", timeout=10000)
+    expect(dashboard.locator("#peerPairList")).to_contain_text("last_sample:", timeout=10000)
     expect(dashboard.locator("#latestStatsPanel")).to_contain_text("RTT")
+    expect(dashboard.locator("#latestStatsPanel")).to_contain_text("Connection")
+    expect(dashboard.locator("#latestStatsPanel")).to_contain_text("Candidate Pair")
+    expect(dashboard.locator("#latestStatsPanel")).to_contain_text("Missing Fields")
     expect(dashboard.locator("#statsHistoryTable tbody tr")).not_to_have_count(0)
     dashboard.wait_for_function(
         "document.querySelectorAll('#statsHistoryTable tbody tr').length > 2",
         timeout=10000,
     )
+    expect(dashboard.locator("#statsHistoryTable tbody tr:first-child td:first-child")).to_contain_text("/", timeout=10000)
+    state_during_refresh = dashboard.evaluate(
+        """
+        async () => {
+          const refresh = window.__RTCTrainingDashboardTestHooks.loadLiveStats();
+          const state = window.__RTCTrainingDashboardTestHooks.getStatsState();
+          const refreshState = window.__RTCTrainingDashboardTestHooks.getStatsRefreshState();
+          await refresh;
+          return {state, refreshState};
+        }
+        """
+    )
+    assert state_during_refresh["state"] == "stats_online"
+    assert state_during_refresh["refreshState"].startswith("stats_last_updated")
+
+    overlapping_refresh_requests = dashboard.evaluate(
+        """
+        async () => {
+          const originalFetch = window.fetch.bind(window);
+          let releaseSnapshot;
+          const snapshotGate = new Promise((resolve) => { releaseSnapshot = resolve; });
+          let snapshotRequests = 0;
+          window.fetch = async (...args) => {
+            const url = String(args[0]);
+            if (url.includes("/api/webrtc/dashboard/snapshot?")) {
+              snapshotRequests += 1;
+              if (snapshotRequests === 1) {
+                await snapshotGate;
+              }
+            }
+            return originalFetch(...args);
+          };
+
+          const firstRefresh = window.__RTCTrainingDashboardTestHooks.loadLiveStats();
+          const secondRefresh = window.__RTCTrainingDashboardTestHooks.loadLiveStats();
+          const state = window.__RTCTrainingDashboardTestHooks.getStatsState();
+          const refreshState = window.__RTCTrainingDashboardTestHooks.getStatsRefreshState();
+          releaseSnapshot();
+          await Promise.all([firstRefresh, secondRefresh]);
+          window.fetch = originalFetch;
+          return {state, refreshState, snapshotRequests};
+        }
+        """
+    )
+    assert overlapping_refresh_requests["state"] == "stats_online"
+    assert overlapping_refresh_requests["refreshState"].startswith("stats_last_updated")
+    assert overlapping_refresh_requests["snapshotRequests"] == 1
+
+    fallback_after_snapshot_404 = dashboard.evaluate(
+        """
+        async () => {
+          const originalFetch = window.fetch.bind(window);
+          let snapshotRequests = 0;
+          window.fetch = async (...args) => {
+            const url = String(args[0]);
+            if (url.includes("/api/webrtc/dashboard/snapshot?")) {
+              snapshotRequests += 1;
+              return new Response("404: Not Found", {
+                status: 404,
+                headers: {"Content-Type": "text/plain"}
+              });
+            }
+            return originalFetch(...args);
+          };
+
+          const payload = await window.__RTCTrainingDashboardTestHooks.loadLiveStats();
+          const secondPayload = await window.__RTCTrainingDashboardTestHooks.loadLiveStats();
+          const state = window.__RTCTrainingDashboardTestHooks.getStatsState();
+          const pairCount = document.querySelectorAll("#peerPairList li").length;
+          window.fetch = originalFetch;
+          return {ok: payload.ok, secondOk: secondPayload.ok, state, pairCount, snapshotRequests};
+        }
+        """
+    )
+    assert fallback_after_snapshot_404["ok"] is True
+    assert fallback_after_snapshot_404["secondOk"] is True
+    assert fallback_after_snapshot_404["state"] == "stats_online"
+    assert fallback_after_snapshot_404["pairCount"] == 2
+    assert fallback_after_snapshot_404["snapshotRequests"] == 1
+
+    clear_result = dashboard.evaluate(
+        """
+        async () => {
+          const payload = await window.__RTCTrainingDashboardTestHooks.clearLiveStats();
+          return {
+            ok: payload.ok,
+            state: window.__RTCTrainingDashboardTestHooks.getStatsState(),
+            pairCount: document.querySelectorAll("#peerPairList li").length,
+            historyCount: document.querySelectorAll("#statsHistoryTable tbody tr").length,
+            latestText: document.querySelector("#latestStatsPanel").textContent
+          };
+        }
+        """
+    )
+    assert clear_result["ok"] is True
+    assert clear_result["state"] == "service_online_but_no_stats"
+    assert clear_result["pairCount"] == 0
+    assert clear_result["historyCount"] == 0
+    assert clear_result["latestText"] == ""

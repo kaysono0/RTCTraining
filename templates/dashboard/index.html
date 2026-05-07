@@ -26,7 +26,9 @@
           <h2>Live Stats</h2>
           <label for="statsRoomInput">Room ID</label>
           <input id="statsRoomInput" value="room1">
+          <button id="clearStatsButton" type="button">清理当前 Room Stats</button>
           <p id="statsState">stats_unchecked</p>
+          <p id="statsRefreshState">stats_last_updated: never</p>
           <ul id="peerPairList"></ul>
           <dl id="latestStatsPanel"></dl>
           <table id="statsHistoryTable">
@@ -51,7 +53,7 @@
         </article>
       </section>
     </main>
-    <script src="/static/dashboard/dashboard.js"></script>
+    <script src="/static/dashboard/dashboard.js?v=20260506-live-stats-snapshot-once-fallback"></script>
     <script>
       (function () {
         window.__RTCTrainingDashboardInlineBootstrap = true;

@@ -89,8 +89,13 @@
       ["Resolution", resolution],
       ["FPS", formatNumber(metrics.fps, 1)],
       ["Lost", metrics.packets_lost ?? "--"],
+      ["Loss%", formatNumber(metrics.packet_loss_rate, 2)],
+      ["Jitter", `${formatNumber(metrics.jitter_ms, 1)} ms`],
       ["RTT", `${formatNumber(metrics.rtt_ms, 1)} ms`],
-      ["ICE", metrics.ice_connection_state || "--"]
+      ["ICE", metrics.ice_connection_state || "--"],
+      ["Codec", metrics.codec || "--"],
+      ["Candidate", `${metrics.local_candidate_type || "?"}/${metrics.remote_candidate_type || "?"}`],
+      ["NACK/PLI", `${metrics.nack_count ?? "--"}/${metrics.pli_count ?? "--"}`]
     ];
     for (const [label, value] of rows) {
       const item = document.createElement("span");

@@ -1,5 +1,5 @@
 import time
-from collections import deque
+from collections import defaultdict, deque
 
 
 class StatsStore:
@@ -9,13 +9,14 @@ class StatsStore:
         self._sample_index = 0
         self._history = {}
         self._latest = {}
+        self._room_revisions = defaultdict(int)
 
     def put_sample(self, sample):
         self._sample_index += 1
         stored = dict(sample)
         stored["test_session_id"] = stored.get("test_session_id")
         stored["metrics"] = dict(stored.get("metrics", {}))
-        stored["timestamp"] = stored.get("timestamp", self._now())
+        stored["timestamp"] = stored.get("timestamp") or self._now()
         stored["sample_index"] = self._sample_index
 
         key = self._key(stored)
@@ -23,6 +24,7 @@ class StatsStore:
             self._history[key] = deque(maxlen=self.max_history_per_pair)
         self._history[key].append(stored)
         self._latest[key] = stored
+        self._room_revisions[stored["room_id"]] += 1
         return stored
 
     def latest(
@@ -72,6 +74,8 @@ class StatsStore:
                 "room_id": key[0],
                 "peer_id": key[1],
                 "remote_peer_id": key[2],
+                "last_sample_timestamp": self._latest[key].get("timestamp"),
+                "last_sample_index": self._latest[key].get("sample_index"),
             }
             for key in self._history
             if key[0] == room_id
@@ -84,7 +88,11 @@ class StatsStore:
         for key in keys:
             del self._history[key]
             self._latest.pop(key, None)
+        self._room_revisions[room_id] += 1
         return removed
+
+    def revision(self, *, room_id):
+        return self._room_revisions[room_id]
 
     def _key(self, sample):
         return (

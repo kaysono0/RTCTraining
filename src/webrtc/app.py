@@ -1,5 +1,6 @@
 from aiohttp import web
 
+from src.webrtc.dashboard_handlers import DashboardHandlers
 from src.webrtc.mesh_handlers import MeshHandlers
 from src.webrtc.room_store import RoomStore
 from src.webrtc.stats_handlers import StatsHandlers
@@ -12,7 +13,8 @@ def create_webrtc_app(room_store=None, stats_store=None):
     stats = stats_store or StatsStore()
     app = web.Application()
     handlers = MeshHandlers(store)
-    stats_handlers = StatsHandlers(stats)
+    dashboard_handlers = DashboardHandlers(store, stats)
+    stats_handlers = StatsHandlers(stats, snapshot_builder=dashboard_handlers.build_snapshot)
     ui = UIHandlers()
 
     app["room_store"] = store
@@ -29,6 +31,7 @@ def create_webrtc_app(room_store=None, stats_store=None):
     app.router.add_get("/stats", stats_handlers.get_latest)
     app.router.add_get("/stats/history", stats_handlers.get_history)
     app.router.add_get("/stats/peers", stats_handlers.get_peers)
+    app.router.add_get("/dashboard/snapshot", dashboard_handlers.snapshot)
     app.router.add_get("/stats/export.csv", stats_handlers.export_csv)
     app.router.add_post("/clear_stats", stats_handlers.clear_stats)
     return app

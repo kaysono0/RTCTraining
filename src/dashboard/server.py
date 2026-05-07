@@ -13,7 +13,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 async def dashboard_index(request):
-    return web.FileResponse(PROJECT_ROOT / "templates" / "dashboard" / "index.html")
+    return web.FileResponse(
+        PROJECT_ROOT / "templates" / "dashboard" / "index.html",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 async def webrtc_members_proxy(request):
@@ -32,7 +35,19 @@ async def webrtc_stats_peers_proxy(request):
     return await webrtc_proxy_json(request, "/stats/peers")
 
 
+async def webrtc_dashboard_snapshot_proxy(request):
+    return await webrtc_proxy_json(request, "/dashboard/snapshot")
+
+
+async def webrtc_clear_stats_proxy(request):
+    return await _webrtc_proxy_json(request, "/clear_stats", method="POST")
+
+
 async def webrtc_proxy_json(request, upstream_path):
+    return await _webrtc_proxy_json(request, upstream_path, method="GET")
+
+
+async def _webrtc_proxy_json(request, upstream_path, method):
     origin = request.query.get("origin", Settings().local_webrtc_origin)
     parsed = urlparse(origin)
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
@@ -55,8 +70,12 @@ async def webrtc_proxy_json(request, upstream_path):
     timeout = ClientTimeout(total=3)
     try:
         async with ClientSession(connector=connector, timeout=timeout) as session:
-            async with session.get(url) as response:
-                payload = await response.json()
+            if method == "POST":
+                async with session.post(url, json=await request.json()) as response:
+                    payload = await response.json()
+            else:
+                async with session.get(url) as response:
+                    payload = await response.json()
     except (ClientError, TimeoutError, OSError) as exc:
         return web.json_response(
             error_payload("service_unreachable", "WebRTC service is unreachable", {"error": str(exc)}),
@@ -81,6 +100,8 @@ def create_dashboard_app():
     app.router.add_get("/api/webrtc/stats", webrtc_stats_proxy)
     app.router.add_get("/api/webrtc/stats/history", webrtc_stats_history_proxy)
     app.router.add_get("/api/webrtc/stats/peers", webrtc_stats_peers_proxy)
+    app.router.add_get("/api/webrtc/dashboard/snapshot", webrtc_dashboard_snapshot_proxy)
+    app.router.add_post("/api/webrtc/clear_stats", webrtc_clear_stats_proxy)
     app.router.add_static(
         "/static/dashboard/",
         PROJECT_ROOT / "static" / "dashboard",
