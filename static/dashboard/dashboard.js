@@ -175,8 +175,13 @@
     panel.innerHTML = "";
     const latest = (samples || [])[0];
     if (!latest) {
+      setText("nackSummary", "NACK: -");
       return;
     }
+    setText(
+      "nackSummary",
+      `NACK: ${formatMetric(metric(latest, "nack_mode"), "")} / ${formatMetric(metric(latest, "nack_count"), "")}`
+    );
 
     const missing = missingFields(latest);
     const rows = [

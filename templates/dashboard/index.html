@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>RTCTraining Dashboard</title>
-    <link rel="stylesheet" href="/static/dashboard/dashboard.css?v=20260507-dashboard-cache-contract">
+    <link rel="stylesheet" href="/static/dashboard/dashboard.css?v=20260507-dashboard-workstation-layout">
   </head>
   <body>
     <main class="dashboard-shell">
@@ -15,22 +15,60 @@
         </div>
         <button id="checkServiceButton" type="button">检查服务</button>
       </header>
-      <section class="status-grid">
-        <article class="status-panel">
-          <h2>WebRTC Service</h2>
+      <section class="dashboard-control-bar">
+        <h2 class="control-bar-title">WebRTC Service</h2>
+        <div>
           <label for="webrtcOriginInput">Service Origin</label>
           <input id="webrtcOriginInput" value="https://localhost:8080">
-          <p id="roomSummary">0 rooms</p>
-        </article>
-        <article class="status-panel stats-panel">
-          <h2>Live Stats</h2>
+        </div>
+        <div>
           <label for="statsRoomInput">Room ID</label>
           <input id="statsRoomInput" value="room1">
-          <button id="clearStatsButton" type="button">清理当前 Room Stats</button>
+        </div>
+        <button id="clearStatsButton" type="button">清理当前 Room Stats</button>
+      </section>
+      <section class="dashboard-summary-strip">
+        <article>
+          <h2>Rooms</h2>
+          <p id="roomSummary">0 rooms</p>
+        </article>
+        <article>
+          <h2>Stats</h2>
           <p id="statsState">stats_unchecked</p>
           <p id="statsRefreshState">stats_last_updated: never</p>
-          <ul id="peerPairList"></ul>
+        </article>
+        <article>
+          <h2>Mesh</h2>
+          <p id="meshTopologyState">mesh_unchecked</p>
+        </article>
+        <article>
+          <h2>CSV</h2>
+          <p id="csvState">csv_waiting</p>
+        </article>
+        <article>
+          <h2>NACK</h2>
+          <p id="nackSummary">NACK: -</p>
+        </article>
+      </section>
+      <section class="dashboard-main-grid">
+        <div class="dashboard-side-column">
+          <article class="status-panel">
+            <h2>Peer Pairs</h2>
+            <ul id="peerPairList"></ul>
+          </article>
+          <article class="status-panel">
+            <h2>Mesh Topology</h2>
+            <ul id="meshTopology"></ul>
+          </article>
+        </div>
+        <article class="dashboard-latest-column">
+          <h2>Latest Stats</h2>
           <dl id="latestStatsPanel"></dl>
+        </article>
+      </section>
+      <section class="dashboard-history-section">
+        <h2>Stats History</h2>
+        <div class="dashboard-table-scroll">
           <table id="statsHistoryTable">
             <thead>
               <tr>
@@ -52,19 +90,10 @@
             </thead>
             <tbody></tbody>
           </table>
-        </article>
-        <article class="status-panel">
-          <h2>Mesh Topology</h2>
-          <p id="meshTopologyState">mesh_unchecked</p>
-          <ul id="meshTopology"></ul>
-        </article>
-        <article class="status-panel">
-          <h2>CSV Analysis</h2>
-          <p id="csvState">csv_waiting</p>
-        </article>
+        </div>
       </section>
     </main>
-    <script src="/static/dashboard/dashboard.js?v=20260507-mesh-topology-nack-mode-analysis-fields"></script>
+    <script src="/static/dashboard/dashboard.js?v=20260507-mesh-topology-nack-mode-workstation-layout"></script>
     <script>
       (function () {
         window.__RTCTrainingDashboardInlineBootstrap = true;

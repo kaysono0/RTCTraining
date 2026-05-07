@@ -96,6 +96,18 @@ async def test_dashboard_homepage_declares_complete_stats_surface(dashboard_clie
     ]:
         assert f'id="{element_id}"' in body
 
+    for class_name in [
+        "dashboard-control-bar",
+        "dashboard-summary-strip",
+        "dashboard-main-grid",
+        "dashboard-side-column",
+        "dashboard-latest-column",
+        "dashboard-history-section",
+        "dashboard-table-scroll",
+    ]:
+        assert f'class="{class_name}"' in body
+    assert 'id="nackSummary"' in body
+
     table_headers = re.findall(r"<th>([^<]+)</th>", body)
     assert table_headers == [
         "Time",

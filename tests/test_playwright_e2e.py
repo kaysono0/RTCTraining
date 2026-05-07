@@ -513,6 +513,7 @@ def test_dashboard_renders_nack_analysis_fields(
     expect(latest_text).to_contain_text("125000 sent / 98000 recv")
     expect(latest_text).to_contain_text("Frames")
     expect(latest_text).to_contain_text("180 sent / 172 recv / 169 decoded")
+    expect(page.locator("#nackSummary")).to_have_text("NACK: disabled / 0")
 
     row = page.locator("#statsHistoryTable tbody tr:first-child")
     expect(row).to_contain_text("NACK 0")
@@ -521,6 +522,33 @@ def test_dashboard_renders_nack_analysis_fields(
     expect(row).to_contain_text("3")
     expect(row).to_contain_text("98000")
     expect(row).to_contain_text("640 x 360")
+
+
+def test_dashboard_workstation_layout_fits_mobile_viewport(
+    browser_context,
+    dashboard_server,
+    webrtc_https_server,
+):
+    page = browser_context.new_page()
+    page.set_viewport_size({"width": 390, "height": 844})
+
+    page.goto(f"{dashboard_server}/?webrtc_origin={webrtc_https_server}")
+
+    for selector in [
+        ".dashboard-control-bar",
+        ".dashboard-summary-strip",
+        ".dashboard-latest-column",
+        ".dashboard-side-column",
+        ".dashboard-history-section",
+    ]:
+        expect(page.locator(selector)).to_be_visible()
+
+    assert page.evaluate("document.documentElement.scrollWidth") <= 390
+    assert page.locator(".dashboard-table-scroll").evaluate(
+        "element => element.scrollWidth > element.clientWidth"
+    )
+    assert page.locator("#checkServiceButton").bounding_box()["width"] >= 340
+    assert page.locator("#clearStatsButton").bounding_box()["width"] >= 340
 
 
 def test_two_webrtc_pages_connect_and_render_remote_video(
