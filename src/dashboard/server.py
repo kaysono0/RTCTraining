@@ -2,7 +2,7 @@ import argparse
 from pathlib import Path
 from urllib.parse import urlencode, urlparse
 
-from aiohttp import ClientError, ClientSession, ClientTimeout, TCPConnector
+from aiohttp import ClientError, ClientResponseError, ClientSession, ClientTimeout, TCPConnector
 from aiohttp import web
 
 from src.webrtc.response import error_payload, success_payload
@@ -72,10 +72,19 @@ async def _webrtc_proxy_json(request, upstream_path, method):
         async with ClientSession(connector=connector, timeout=timeout) as session:
             if method == "POST":
                 async with session.post(url, json=await request.json()) as response:
-                    payload = await response.json()
+                    payload = await _read_upstream_json(response)
             else:
                 async with session.get(url) as response:
-                    payload = await response.json()
+                    payload = await _read_upstream_json(response)
+    except ClientResponseError as exc:
+        return web.json_response(
+            error_payload(
+                "upstream_non_json",
+                "WebRTC service returned a non-JSON response",
+                {"status": exc.status, "error": str(exc)},
+            ),
+            status=502,
+        )
     except (ClientError, TimeoutError, OSError) as exc:
         return web.json_response(
             error_payload("service_unreachable", "WebRTC service is unreachable", {"error": str(exc)}),
@@ -91,6 +100,14 @@ async def _webrtc_proxy_json(request, upstream_path, method):
     data = dict(payload.get("data", {}))
     data["origin"] = origin
     return web.json_response(success_payload(data))
+
+
+async def _read_upstream_json(response):
+    try:
+        return await response.json()
+    except ClientResponseError as exc:
+        exc.status = response.status
+        raise
 
 
 def create_dashboard_app():

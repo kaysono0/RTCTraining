@@ -1,5 +1,6 @@
 import contextlib
 import json
+import re
 import socket
 import ssl
 import subprocess
@@ -178,6 +179,62 @@ def test_dashboard_auto_checks_webrtc_service_on_load(
     expect(page.locator("#roomSummary")).to_contain_text("0 rooms")
 
 
+def test_dashboard_hooks_survive_legacy_html_missing_new_controls(
+    browser_context,
+    dashboard_server,
+    webrtc_https_server,
+):
+    page = browser_context.new_page()
+    page_errors = []
+    page.on("pageerror", lambda error: page_errors.append(str(error)))
+    page.route(
+        re.compile(r".*/legacy-dashboard(?:\?.*)?$"),
+        lambda route: route.fulfill(
+            status=200,
+            content_type="text/html",
+            body="""
+            <!doctype html>
+            <html lang="zh-CN">
+              <body>
+                <p id="serviceState">service_unchecked</p>
+                <button id="checkServiceButton" type="button">检查服务</button>
+                <input id="webrtcOriginInput" value="https://localhost:8080">
+                <p id="roomSummary">0 rooms</p>
+                <input id="statsRoomInput" value="room1">
+                <p id="statsState">stats_unchecked</p>
+                <p id="statsRefreshState">stats_last_updated: never</p>
+                <ul id="peerPairList"></ul>
+                <dl id="latestStatsPanel"></dl>
+                <table id="statsHistoryTable"><tbody></tbody></table>
+                <script src="/static/dashboard/dashboard.js?v=legacy-html-contract"></script>
+              </body>
+            </html>
+            """,
+        ),
+    )
+
+    page.goto(f"{dashboard_server}/legacy-dashboard?webrtc_origin={webrtc_https_server}")
+    page.wait_for_function(
+        """
+        () => {
+          const hooks = window.__RTCTrainingDashboardTestHooks;
+          return hooks &&
+            typeof hooks.checkService === "function" &&
+            typeof hooks.loadLiveStats === "function" &&
+            typeof hooks.clearLiveStats === "function" &&
+            typeof hooks.getServiceState === "function" &&
+            typeof hooks.getStatsState === "function" &&
+            typeof hooks.getStatsRefreshState === "function" &&
+            typeof hooks.getRoomSummary === "function";
+        }
+        """,
+        timeout=10000,
+    )
+    expect(page.locator("#serviceState")).to_have_text("service_online", timeout=10000)
+    expect(page.locator("#statsState")).to_have_text("service_online_but_no_stats", timeout=10000)
+    assert page_errors == []
+
+
 def test_two_webrtc_pages_connect_and_render_remote_video(
     browser_context,
     webrtc_https_server,
@@ -276,6 +333,45 @@ def test_three_webrtc_pages_form_minimal_mesh(
             arg=expected_remote_peer_ids,
             timeout=15000,
         )
+
+
+def test_dashboard_renders_three_peer_mesh_topology(
+    browser_context,
+    dashboard_server,
+    webrtc_https_server,
+):
+    room_id = "dashboard-mesh-topology"
+    alice = browser_context.new_page()
+    bob = browser_context.new_page()
+    charlie = browser_context.new_page()
+    dashboard = browser_context.new_page()
+    pages = ((alice, "Alice"), (bob, "Bob"), (charlie, "Charlie"))
+
+    for page, display_name in pages:
+        page.goto(webrtc_https_server)
+        page.get_by_role("button", name="Start Media").click()
+        expect(page.locator("#connectionState")).to_have_text("media_ready")
+        page.fill("#roomIdInput", room_id)
+        page.fill("#displayNameInput", display_name)
+
+    for page, _display_name in pages:
+        page.get_by_role("button", name="Join").click()
+
+    for page, _display_name in pages:
+        expect(page.locator("#connectionState")).to_have_text("connected", timeout=15000)
+
+    dashboard.goto(
+        f"{dashboard_server}/?webrtc_origin={webrtc_https_server}&room_id={room_id}"
+    )
+
+    expect(dashboard.locator("#meshTopologyState")).to_have_text("mesh_online", timeout=15000)
+    expect(dashboard.locator("#meshTopology li")).to_have_count(6, timeout=15000)
+    expect(dashboard.locator("#meshTopology")).to_contain_text("Alice (peer-", timeout=15000)
+    expect(dashboard.locator("#meshTopology")).to_contain_text("Bob (peer-", timeout=15000)
+    expect(dashboard.locator("#meshTopology")).to_contain_text("Charlie (peer-", timeout=15000)
+    expect(dashboard.locator("#meshTopology")).to_contain_text("connected")
+    expect(dashboard.locator("#meshTopology")).to_contain_text("RTT")
+    expect(dashboard.locator("#meshTopology")).to_contain_text("Bitrate")
 
 
 def test_connected_webrtc_pages_upload_stats_visible_to_dashboard(

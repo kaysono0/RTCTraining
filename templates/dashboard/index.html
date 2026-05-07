@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>RTCTraining Dashboard</title>
-    <link rel="stylesheet" href="/static/dashboard/dashboard.css">
+    <link rel="stylesheet" href="/static/dashboard/dashboard.css?v=20260507-dashboard-cache-contract">
   </head>
   <body>
     <main class="dashboard-shell">
@@ -46,6 +46,11 @@
             </thead>
             <tbody></tbody>
           </table>
+        </article>
+        <article class="status-panel">
+          <h2>Mesh Topology</h2>
+          <p id="meshTopologyState">mesh_unchecked</p>
+          <ul id="meshTopology"></ul>
         </article>
         <article class="status-panel">
           <h2>CSV Analysis</h2>

@@ -1,5 +1,7 @@
 import pytest
 import pytest_asyncio
+import re
+from aiohttp import web
 
 from src.dashboard.server import create_dashboard_app
 from src.webrtc.app import create_webrtc_app
@@ -59,6 +61,96 @@ async def test_dashboard_homepage_loads_independent_shell(dashboard_client):
     assert "peerPairList" in body
     assert "latestStatsPanel" in body
     assert "statsHistoryTable" in body
+
+
+@pytest.mark.asyncio
+async def test_dashboard_homepage_declares_complete_stats_surface(dashboard_client):
+    response = await dashboard_client.get("/")
+    body = await response.text()
+
+    assert response.status == 200
+    for element_id in [
+        "serviceState",
+        "checkServiceButton",
+        "webrtcOriginInput",
+        "roomSummary",
+        "statsRoomInput",
+        "clearStatsButton",
+        "statsState",
+        "statsRefreshState",
+        "peerPairList",
+        "latestStatsPanel",
+        "statsHistoryTable",
+        "meshTopologyState",
+        "meshTopology",
+        "csvState",
+    ]:
+        assert f'id="{element_id}"' in body
+
+    table_headers = re.findall(r"<th>([^<]+)</th>", body)
+    assert table_headers == [
+        "Time",
+        "Peer",
+        "Remote",
+        "RTT",
+        "Loss",
+        "Jitter",
+        "Bitrate",
+        "FPS",
+    ]
+    assert "window.__RTCTrainingDashboardInlineBootstrap" in body
+    assert "window.__RTCTrainingDashboardInlineServiceCheckPath" in body
+
+
+@pytest.mark.asyncio
+async def test_dashboard_homepage_cache_contract(dashboard_client):
+    response = await dashboard_client.get("/")
+    body = await response.text()
+
+    assert response.status == 200
+    assert response.headers["Cache-Control"] == "no-store"
+    assert re.search(r'href="/static/dashboard/dashboard\.css\?v=[^"]+"', body)
+    assert re.search(r'src="/static/dashboard/dashboard\.js\?v=[^"]+"', body)
+
+
+@pytest.mark.asyncio
+async def test_dashboard_static_assets_are_versioned_and_loadable(dashboard_client):
+    response = await dashboard_client.get("/")
+    body = await response.text()
+    css_path = re.search(r'href="([^"]*dashboard\.css\?v=[^"]+)"', body).group(1)
+    js_path = re.search(r'src="([^"]*dashboard\.js\?v=[^"]+)"', body).group(1)
+
+    css_response = await dashboard_client.get(css_path)
+    css_body = await css_response.text()
+    js_response = await dashboard_client.get(js_path)
+    js_body = await js_response.text()
+
+    assert css_response.status == 200
+    assert ".dashboard-shell" in css_body
+    assert js_response.status == 200
+    assert "window.__RTCTrainingDashboardTestHooks" in js_body
+    assert "loadLiveStats" in js_body
+    assert "clearLiveStats" in js_body
+
+
+@pytest.mark.asyncio
+async def test_dashboard_proxy_handles_non_json_upstream_response(aiohttp_client, dashboard_client):
+    async def plain_text_response(request):
+        return web.Response(text="not json", content_type="text/plain")
+
+    upstream = web.Application()
+    upstream.router.add_get("/dashboard/snapshot", plain_text_response)
+    upstream_client = await aiohttp_client(upstream)
+
+    response = await dashboard_client.get(
+        f"/api/webrtc/dashboard/snapshot?origin={upstream_client.make_url('/')}&room_id=room1"
+    )
+    payload = await response.json()
+
+    assert response.status == 502
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "upstream_non_json"
+    assert payload["error"]["details"]["status"] == 200
 
 
 @pytest.mark.asyncio

@@ -22,6 +22,13 @@
     }
   }
 
+  function addClickListener(id, callback) {
+    const element = document.getElementById(id);
+    if (element) {
+      element.addEventListener("click", callback);
+    }
+  }
+
   function getText(id) {
     const element = document.getElementById(id);
     return element ? element.textContent : "";
@@ -223,12 +230,45 @@
     }
   }
 
+  function renderMeshTopology(snapshot, labels) {
+    const state = document.getElementById("meshTopologyState");
+    const list = document.getElementById("meshTopology");
+    if (!state || !list) {
+      return;
+    }
+
+    const peers = snapshot.peers || [];
+    list.innerHTML = "";
+    if (peers.length === 0) {
+      state.textContent = "mesh_waiting_for_stats";
+      return;
+    }
+
+    for (const peer of peers) {
+      const sample = (snapshot.latest || []).find((candidate) => {
+        return candidate.peer_id === peer.peer_id &&
+          candidate.remote_peer_id === peer.remote_peer_id;
+      }) || {};
+      const item = document.createElement("li");
+      item.textContent = [
+        peerPairLabel(peer.peer_id, peer.remote_peer_id, labels),
+        formatMetric(metric(sample, "connection_state"), "connected"),
+        `RTT ${formatMetric(metric(sample, "rtt_ms"), " ms")}`,
+        `Loss ${formatMetric(metric(sample, "packets_lost"), "")}`,
+        `Bitrate ${formatMetric(metric(sample, "bitrate_kbps"), " kbps")}`
+      ].join(" | ");
+      list.appendChild(item);
+    }
+    state.textContent = peers.length >= 6 ? "mesh_online" : "mesh_partial";
+  }
+
   function renderSnapshot(snapshot) {
     const labels = buildPeerLabelsFromMembers(snapshot.members || []);
     const peers = snapshot.peers || [];
     renderPeerPairs(peers, labels);
     renderLatestStats(snapshot.latest || [], labels);
     renderHistoryRows(snapshot.history || [], labels);
+    renderMeshTopology(snapshot, labels);
     if (peers.length === 0) {
       setText("statsState", "service_online_but_no_stats");
     } else {
@@ -433,13 +473,13 @@
       roomInput.value = queryRoomId;
     }
 
-    document.getElementById("checkServiceButton").addEventListener("click", () => {
+    addClickListener("checkServiceButton", () => {
       checkService().catch((error) => {
         setText("serviceState", "service_error");
         setText("roomSummary", error.message);
       });
     });
-    document.getElementById("clearStatsButton").addEventListener("click", () => {
+    addClickListener("clearStatsButton", () => {
       clearLiveStats().catch((error) => {
         setText("statsState", "stats_clear_failed");
         setText("statsRefreshState", error.message);
@@ -478,5 +518,9 @@
     }, 1000);
   }
 
-  window.addEventListener("DOMContentLoaded", bootstrapDashboard);
+  if (document.readyState === "loading") {
+    window.addEventListener("DOMContentLoaded", bootstrapDashboard);
+  } else {
+    bootstrapDashboard();
+  }
 })();
