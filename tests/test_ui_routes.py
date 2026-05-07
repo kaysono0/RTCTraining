@@ -110,7 +110,7 @@ async def test_dashboard_homepage_cache_contract(dashboard_client):
     assert response.status == 200
     assert response.headers["Cache-Control"] == "no-store"
     assert re.search(r'href="/static/dashboard/dashboard\.css\?v=[^"]+"', body)
-    assert re.search(r'src="/static/dashboard/dashboard\.js\?v=[^"]+"', body)
+    assert re.search(r'src="/static/dashboard/dashboard\.js\?v=[^"]*mesh-topology[^"]*"', body)
 
 
 @pytest.mark.asyncio
