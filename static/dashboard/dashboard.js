@@ -117,13 +117,21 @@
       "connection_state",
       "ice_connection_state",
       "rtt_ms",
+      "packets_sent",
+      "packets_received",
       "packets_lost",
       "jitter_ms",
       "bitrate_kbps",
       "fps",
       "frame_width",
       "frame_height",
+      "bytes_received",
+      "frames_decoded",
+      "frames_dropped",
       "codec",
+      "nack_enabled",
+      "nack_mode",
+      "nack_count",
       "local_candidate_type",
       "remote_candidate_type",
       "candidate_pair_protocol",
@@ -179,17 +187,29 @@
       ["RTT", formatMetric(metric(latest, "rtt_ms"), " ms")],
       ["Loss", formatMetric(metric(latest, "packets_lost"), "")],
       ["Loss Rate", formatMetric(metric(latest, "packet_loss_rate"), "%")],
+      [
+        "Packets",
+        `${formatMetric(metric(latest, "packets_sent"), "")} sent / ${formatMetric(metric(latest, "packets_received"), "")} recv / ${formatMetric(metric(latest, "packets_lost"), "")} lost`
+      ],
       ["Jitter", formatMetric(metric(latest, "jitter_ms"), " ms")],
       ["Bitrate", formatMetric(metric(latest, "bitrate_kbps"), " kbps")],
       ["Available Out", formatMetric(metric(latest, "available_outgoing_bitrate_kbps"), " kbps")],
+      [
+        "Bytes",
+        `${formatMetric(metric(latest, "bytes_sent"), "")} sent / ${formatMetric(metric(latest, "bytes_received"), "")} recv`
+      ],
       ["FPS", formatMetric(metric(latest, "fps"), "")],
       [
         "Resolution",
         `${formatMetric(metric(latest, "frame_width"), "")} x ${formatMetric(metric(latest, "frame_height"), "")}`
       ],
-      ["Frames", `${formatMetric(metric(latest, "frames_sent"), "")} sent / ${formatMetric(metric(latest, "frames_received"), "")} recv`],
+      [
+        "Frames",
+        `${formatMetric(metric(latest, "frames_sent"), "")} sent / ${formatMetric(metric(latest, "frames_received"), "")} recv / ${formatMetric(metric(latest, "frames_decoded"), "")} decoded`
+      ],
       ["Dropped", formatMetric(metric(latest, "frames_dropped"), "")],
       ["Codec", formatMetric(metric(latest, "codec"), "")],
+      ["NACK Enabled", formatMetric(metric(latest, "nack_enabled"), "")],
       ["NACK Mode", formatMetric(metric(latest, "nack_mode"), "")],
       ["Recovery", `NACK ${formatMetric(metric(latest, "nack_count"), "")} / PLI ${formatMetric(metric(latest, "pli_count"), "")} / FIR ${formatMetric(metric(latest, "fir_count"), "")}`],
       ["Missing Fields", missing.length ? missing.join(", ") : "none"]
@@ -218,6 +238,12 @@
         peerLabel(sample.remote_peer_id, labels),
         formatMetric(metric(sample, "rtt_ms"), " ms"),
         formatMetric(metric(sample, "packets_lost"), ""),
+        `${formatMetric(metric(sample, "packets_received"), "")} recv / ${formatMetric(metric(sample, "packets_lost"), "")} lost`,
+        `NACK ${formatMetric(metric(sample, "nack_count"), "")}`,
+        formatMetric(metric(sample, "frames_decoded"), ""),
+        formatMetric(metric(sample, "frames_dropped"), ""),
+        formatMetric(metric(sample, "bytes_received"), ""),
+        `${formatMetric(metric(sample, "frame_width"), "")} x ${formatMetric(metric(sample, "frame_height"), "")}`,
         formatMetric(metric(sample, "jitter_ms"), " ms"),
         formatMetric(metric(sample, "bitrate_kbps"), " kbps"),
         formatMetric(metric(sample, "fps"), "")

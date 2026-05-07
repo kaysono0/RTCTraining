@@ -417,6 +417,112 @@ def test_dashboard_hooks_survive_legacy_html_missing_new_controls(
     assert page_errors == []
 
 
+def test_dashboard_renders_nack_analysis_fields(
+    browser_context,
+    dashboard_server,
+    webrtc_https_server,
+):
+    page = browser_context.new_page()
+    sample = {
+        "sample_index": 7,
+        "timestamp": 1778140800,
+        "room_id": "nack-room",
+        "peer_id": "peer-a",
+        "remote_peer_id": "peer-b",
+        "metrics": {
+            "connection_state": "connected",
+            "ice_connection_state": "connected",
+            "rtt_ms": 37.5,
+            "packets_sent": 300,
+            "packets_received": 280,
+            "packets_lost": 12,
+            "packet_loss_rate": 4.11,
+            "jitter_ms": 9.2,
+            "bitrate_kbps": 812.4,
+            "available_outgoing_bitrate_kbps": 1200,
+            "fps": 29.8,
+            "frame_width": 640,
+            "frame_height": 360,
+            "frames_sent": 180,
+            "frames_received": 172,
+            "frames_decoded": 169,
+            "frames_dropped": 3,
+            "bytes_sent": 125000,
+            "bytes_received": 98000,
+            "codec": "video/VP8",
+            "nack_enabled": False,
+            "nack_mode": "disabled",
+            "nack_count": 0,
+            "pli_count": 1,
+            "fir_count": 0,
+        },
+    }
+    page.route(
+        re.compile(r".*/api/webrtc/members\?.*"),
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            json={
+                "ok": True,
+                "data": {
+                    "rooms": {
+                        "nack-room": {
+                            "members": [
+                                {"peer_id": "peer-a", "display_name": "Alice"},
+                                {"peer_id": "peer-b", "display_name": "Bob"},
+                            ]
+                        }
+                    }
+                },
+            },
+        ),
+    )
+    page.route(
+        re.compile(r".*/api/webrtc/dashboard/snapshot\?.*"),
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            json={
+                "ok": True,
+                "data": {
+                    "room_id": "nack-room",
+                    "server_time": 1778140801,
+                    "members": [
+                        {"peer_id": "peer-a", "display_name": "Alice"},
+                        {"peer_id": "peer-b", "display_name": "Bob"},
+                    ],
+                    "peers": [
+                        {"peer_id": "peer-a", "remote_peer_id": "peer-b"},
+                    ],
+                    "latest": [sample],
+                    "history": [sample],
+                },
+            },
+        ),
+    )
+
+    page.goto(f"{dashboard_server}/?webrtc_origin={webrtc_https_server}&room_id=nack-room")
+
+    expect(page.locator("#statsState")).to_have_text("stats_online", timeout=10000)
+    latest_text = page.locator("#latestStatsPanel")
+    expect(latest_text).to_contain_text("NACK Enabled")
+    expect(latest_text).to_contain_text("false")
+    expect(latest_text).to_contain_text("Packets")
+    expect(latest_text).to_contain_text("300 sent / 280 recv / 12 lost")
+    expect(latest_text).to_contain_text("Bytes")
+    expect(latest_text).to_contain_text("125000 sent / 98000 recv")
+    expect(latest_text).to_contain_text("Frames")
+    expect(latest_text).to_contain_text("180 sent / 172 recv / 169 decoded")
+
+    row = page.locator("#statsHistoryTable tbody tr:first-child")
+    expect(row).to_contain_text("NACK 0")
+    expect(row).to_contain_text("280 recv / 12 lost")
+    expect(row).to_contain_text("169")
+    expect(row).to_contain_text("3")
+    expect(row).to_contain_text("98000")
+    expect(row).to_contain_text("640 x 360")
+
+
 def test_two_webrtc_pages_connect_and_render_remote_video(
     browser_context,
     webrtc_https_server,

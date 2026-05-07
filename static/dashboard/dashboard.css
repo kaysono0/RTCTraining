@@ -82,6 +82,7 @@ input {
 
 .stats-panel {
   grid-column: span 2;
+  overflow-x: auto;
 }
 
 #peerPairList {
@@ -109,6 +110,7 @@ input {
 }
 
 #statsHistoryTable {
+  min-width: 980px;
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
