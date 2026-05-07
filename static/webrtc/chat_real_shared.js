@@ -29,7 +29,10 @@
       intervalMs: 1000,
       lossThresholdPercent: 5,
       rttThresholdMs: 300
-    }
+    },
+    testSessionId: null,
+    testSessionStatus: "idle",
+    testSession: null
   };
 
   function setConnectionState(nextState) {

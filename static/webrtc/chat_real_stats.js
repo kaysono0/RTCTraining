@@ -171,7 +171,7 @@
       room_id: shared.state.roomId,
       peer_id: shared.state.clientId,
       remote_peer_id: remotePeerId,
-      test_session_id: null,
+      test_session_id: shared.state.testSessionId,
       timestamp: Date.now() / 1000,
       metrics
     };

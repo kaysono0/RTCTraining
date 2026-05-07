@@ -3,6 +3,7 @@ function bootstrapRTCTraining() {
   const session = window.RTCTrainingSession;
   const nack = window.RTCTrainingNack;
   const bitrate = window.RTCTrainingBitrate;
+  const testSession = window.RTCTrainingTestSession;
 
   function addClickListener(id, callback) {
     const element = document.getElementById(id);
@@ -58,6 +59,34 @@ function bootstrapRTCTraining() {
         });
       });
     }
+  }
+
+  if (testSession) {
+    testSession.renderTestSession();
+    addClickListener("startTestSessionButton", () => {
+      testSession.startTestSession().catch((error) => {
+        shared.addTimelineEvent("test_session_start_failed", {
+          category: "error",
+          summary: error.message
+        });
+      });
+    });
+    addClickListener("finishTestSessionButton", () => {
+      testSession.finishTestSession().catch((error) => {
+        shared.addTimelineEvent("test_session_finish_failed", {
+          category: "error",
+          summary: error.message
+        });
+      });
+    });
+    addClickListener("cancelTestSessionButton", () => {
+      testSession.cancelTestSession().catch((error) => {
+        shared.addTimelineEvent("test_session_cancel_failed", {
+          category: "error",
+          summary: error.message
+        });
+      });
+    });
   }
 
   addClickListener("startMediaButton", () => {
@@ -157,6 +186,21 @@ function bootstrapRTCTraining() {
     },
     getAbrLastDecision() {
       return shared.state.abrLastDecision;
+    },
+    startTestSession(options) {
+      return testSession.startTestSession(options);
+    },
+    finishTestSession() {
+      return testSession.finishTestSession();
+    },
+    cancelTestSession() {
+      return testSession.cancelTestSession();
+    },
+    getTestSessionId() {
+      return shared.state.testSessionId;
+    },
+    getTestSessionStatus() {
+      return shared.state.testSessionStatus;
     },
     startMedia() {
       return session.startMedia();

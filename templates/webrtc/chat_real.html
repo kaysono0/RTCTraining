@@ -79,6 +79,32 @@
           <button id="leaveRoomButton" type="button">Leave</button>
         </div>
       </section>
+      <section class="test-session-panel" aria-label="Test session">
+        <div class="test-session-controls">
+          <label>
+            <span>Preset</span>
+            <select id="testPresetSelect" aria-label="Test preset">
+              <option value="manual" selected>manual</option>
+              <option value="nack_on">nack_on</option>
+              <option value="nack_off">nack_off</option>
+              <option value="low_bitrate">low_bitrate</option>
+              <option value="abr_simple">abr_simple</option>
+            </select>
+          </label>
+          <label>
+            <span>Weak network</span>
+            <input id="testWeakNetworkInput" value="none" aria-label="Weak network condition">
+          </label>
+          <label>
+            <span>Note</span>
+            <input id="testSessionNoteInput" placeholder="test note" aria-label="Test session note">
+          </label>
+          <button id="startTestSessionButton" type="button">Start Session</button>
+          <button id="finishTestSessionButton" type="button">Finish</button>
+          <button id="cancelTestSessionButton" type="button">Cancel</button>
+          <span id="testSessionState">test_session_idle</span>
+        </div>
+      </section>
       <section class="video-grid">
         <article>
           <h2>Local</h2>
@@ -97,6 +123,7 @@
     <script src="/static/webrtc/chat_real_shared.js?v=20260507-nack-mode-manual-bitrate-mobile-media"></script>
     <script src="/static/webrtc/chat_real_nack.js?v=20260507-nack-mode-manual-bitrate-mobile-media"></script>
     <script src="/static/webrtc/chat_real_bitrate.js?v=20260507-manual-bitrate-abr-mobile-media"></script>
+    <script src="/static/webrtc/chat_real_test_session.js?v=20260507-test-session"></script>
     <script src="/static/webrtc/chat_real_session.js?v=20260507-nack-mode-manual-bitrate-mobile-media"></script>
     <script src="/static/webrtc/chat_real_stats.js?v=20260507-nack-mode-manual-bitrate-mobile-media"></script>
     <script src="/static/webrtc/chat_real_bootstrap.js?v=20260507-nack-mode-manual-bitrate-mobile-media"></script>

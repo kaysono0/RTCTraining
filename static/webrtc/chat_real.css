@@ -134,6 +134,60 @@ body {
   color: #1d4ed8;
 }
 
+.test-session-panel {
+  background: #ffffff;
+  border-bottom: 1px solid #d8dee9;
+  padding: 12px 24px;
+}
+
+.test-session-controls {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(140px, 0.8fr) minmax(180px, 1fr) auto auto auto auto;
+}
+
+.test-session-controls label {
+  color: #475569;
+  display: grid;
+  font-size: 12px;
+  gap: 4px;
+  min-width: 0;
+}
+
+.test-session-controls input,
+.test-session-controls select,
+.test-session-controls button {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  box-sizing: border-box;
+  font: inherit;
+  min-height: 36px;
+  min-width: 0;
+  padding: 0 10px;
+  width: 100%;
+}
+
+.test-session-controls button {
+  background: #ffffff;
+  color: #1d4ed8;
+  cursor: pointer;
+}
+
+#startTestSessionButton {
+  background: #1d4ed8;
+  color: #ffffff;
+}
+
+#testSessionState {
+  align-items: center;
+  color: #475569;
+  display: inline-flex;
+  font-size: 13px;
+  min-height: 36px;
+  overflow-wrap: anywhere;
+}
+
 .video-grid {
   display: grid;
   gap: 16px;
@@ -361,6 +415,19 @@ video {
     min-width: 0;
     padding: 0 8px;
     width: 100%;
+  }
+
+  .test-session-panel {
+    padding: 12px 14px;
+  }
+
+  .test-session-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .test-session-controls label:nth-of-type(3),
+  #testSessionState {
+    grid-column: span 2;
   }
 
   .video-grid {

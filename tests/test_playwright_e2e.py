@@ -356,6 +356,42 @@ def test_webrtc_page_runs_simplified_abr_decisions(browser_context, webrtc_https
     expect(page.locator("#abrModeState")).to_have_text("abr_off")
 
 
+def test_webrtc_page_runs_test_session_lifecycle(browser_context, webrtc_https_server):
+    page = browser_context.new_page()
+
+    page.goto(webrtc_https_server)
+
+    expect(page.locator("#testSessionState")).to_have_text("test_session_idle")
+    result = page.evaluate(
+        """
+        window.__RTCTrainingTestHooks.startTestSession({
+          preset: "nack_on",
+          metadata: { note: "baseline" },
+          weak_network: { profile: "none" }
+        })
+        """
+    )
+
+    assert result["status"] == "running"
+    assert page.evaluate("window.__RTCTrainingTestHooks.getTestSessionId()") == result["test_session_id"]
+    expect(page.locator("#testSessionState")).to_have_text("test_session_running")
+
+    sample = page.evaluate(
+        """
+        window.RTCTrainingStats.collectPeerStats("peer-b", {
+          connectionState: "connected",
+          iceConnectionState: "connected",
+          getStats: async () => new Map()
+        })
+        """
+    )
+    assert sample["test_session_id"] == result["test_session_id"]
+
+    finished = page.evaluate("window.__RTCTrainingTestHooks.finishTestSession()")
+    assert finished["status"] == "finished"
+    expect(page.locator("#testSessionState")).to_have_text("test_session_finished")
+
+
 def test_webrtc_hooks_survive_legacy_html_missing_nack_controls(
     browser_context,
     webrtc_https_server,

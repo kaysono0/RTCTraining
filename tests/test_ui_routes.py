@@ -27,6 +27,7 @@ async def test_webrtc_homepage_loads_experiment_shell(webrtc_client):
     assert "RTCTraining" in body
     assert re.search(r'href="/static/webrtc/chat_real\.css\?v=[^"]*mobile-media[^"]*"', body)
     assert re.search(r'src="/static/webrtc/chat_real_nack\.js\?v=[^"]*nack-mode[^"]*mobile-media[^"]*"', body)
+    assert re.search(r'src="/static/webrtc/chat_real_test_session\.js\?v=[^"]*test-session[^"]*"', body)
     assert re.search(r'src="/static/webrtc/chat_real_session\.js\?v=[^"]*nack-mode[^"]*mobile-media[^"]*"', body)
     assert re.search(r'src="/static/webrtc/chat_real_stats\.js\?v=[^"]*nack-mode[^"]*mobile-media[^"]*"', body)
     assert re.search(r'src="/static/webrtc/chat_real_bootstrap\.js\?v=[^"]*nack-mode[^"]*mobile-media[^"]*"', body)
@@ -48,6 +49,13 @@ async def test_webrtc_homepage_loads_experiment_shell(webrtc_client):
     assert 'id="abrLossThresholdInput"' in body
     assert 'id="abrRttThresholdInput"' in body
     assert 'id="abrModeState"' in body
+    assert 'id="testPresetSelect"' in body
+    assert 'id="testWeakNetworkInput"' in body
+    assert 'id="testSessionNoteInput"' in body
+    assert 'id="startTestSessionButton"' in body
+    assert 'id="finishTestSessionButton"' in body
+    assert 'id="cancelTestSessionButton"' in body
+    assert 'id="testSessionState"' in body
     assert "window.__RTCTrainingTestHooks" in body
     assert "chat_real_bitrate.js" in body
 
@@ -60,6 +68,7 @@ async def test_webrtc_homepage_loads_experiment_shell(webrtc_client):
         ("chat_real_stats.js", "RTCTrainingStats"),
         ("chat_real_nack.js", "RTCTrainingNack"),
         ("chat_real_bitrate.js", "RTCTrainingBitrate"),
+        ("chat_real_test_session.js", "RTCTrainingTestSession"),
     ],
 )
 async def test_webrtc_static_asset_loads(webrtc_client, asset, expected):
@@ -281,6 +290,15 @@ async def test_webrtc_stats_uploader_records_abr_config(webrtc_client):
     assert "abr_mode: shared.state.abrMode" in body
     assert "abr_target_bitrate_bps: shared.state.abrTargetBitrateBps" in body
     assert "abr_decision: shared.state.abrLastDecision" in body
+
+
+@pytest.mark.asyncio
+async def test_webrtc_stats_uploader_records_test_session_id(webrtc_client):
+    response = await webrtc_client.get("/static/webrtc/chat_real_stats.js")
+    body = await response.text()
+
+    assert response.status == 200
+    assert "test_session_id: shared.state.testSessionId" in body
 
 
 @pytest.mark.asyncio
