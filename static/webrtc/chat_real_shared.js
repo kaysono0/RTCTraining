@@ -113,17 +113,40 @@
     item.appendChild(meta);
 
     const preview = event.details && event.details.payload_preview;
+    const parsed = event.details && event.details.payload_parsed;
     const full = event.details && event.details.payload_full;
-    if (preview || full) {
+    if (preview || parsed || full) {
       const details = document.createElement("details");
       const summary = document.createElement("summary");
       summary.textContent = preview || "payload";
       details.appendChild(summary);
-      if (full) {
-        const code = document.createElement("pre");
-        code.textContent = full;
-        details.appendChild(code);
+
+      const code = document.createElement("pre");
+      var defaultContent = parsed || full || "";
+      code.textContent = defaultContent;
+      details.appendChild(code);
+
+      if (parsed && full) {
+        var showingParsed = true;
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "timeline-toggle-btn";
+        toggle.textContent = "View Raw";
+        toggle.addEventListener("click", function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (showingParsed) {
+            code.textContent = full;
+            toggle.textContent = "View Parsed";
+          } else {
+            code.textContent = parsed;
+            toggle.textContent = "View Raw";
+          }
+          showingParsed = !showingParsed;
+        });
+        details.appendChild(toggle);
       }
+
       item.appendChild(details);
     }
 

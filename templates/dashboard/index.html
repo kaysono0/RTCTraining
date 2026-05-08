@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>RTCTraining Dashboard</title>
-    <link rel="stylesheet" href="/static/dashboard/dashboard.css?v=20260507-dashboard-workstation-layout-csv-analysis">
+    <link rel="stylesheet" href="/static/dashboard/dashboard.css?v=20260508-stale-data-filter-chinese-labels">
   </head>
   <body>
     <main class="dashboard-shell">
@@ -15,6 +15,51 @@
         </div>
         <button id="checkServiceButton" type="button">检查服务</button>
       </header>
+      <details class="dashboard-guide" id="dashboardGuide">
+        <summary>Dashboard 使用说明（点击展开/折叠）</summary>
+        <div class="guide-content">
+          <section class="guide-section">
+            <h3>概览</h3>
+            <p>Dashboard 是一个 WebRTC 会话实时监控与 CSV 数据分析工具，通过代理连接到本地 WebRTC 服务（默认 <code>https://localhost:8080</code>）。页面每 1 秒自动刷新，布局分为：实时监控区（上半部分）和 CSV 离线分析区（下半部分）。</p>
+          </section>
+          <section class="guide-section">
+            <h3>上半部分 — 实时监控</h3>
+            <dl>
+              <dt>Service Origin / Room ID</dt>
+              <dd>指定 WebRTC 服务的地址和要监控的房间号。修改 Room ID 后自动切换房间。</dd>
+              <dt>检查服务</dt>
+              <dd>检测 WebRTC 服务是否在线，获取当前所有房间概况。</dd>
+              <dt>清理当前 Room Stats</dt>
+              <dd>清空当前房间的所有统计数据（含历史），一般用于一轮测试结束后重置数据。</dd>
+            </dl>
+            <p><strong>Summary Strip（5 个指标卡）：</strong>Rooms（当前房间数）、Stats（统计状态）、Mesh（拓扑状态）、CSV（分析状态）、NACK（NACK 模式/次数）。</p>
+            <p><strong>Peer Pairs：</strong>当前房间内所有观察到的 Peer 对（Peer → Remote）。<strong>Mesh Topology：</strong>每个 Peer 对的连接状态、RTT、Loss、Bitrate。<strong>Latest Stats：</strong>最新一条样本的全部指标详情。<strong>Stats History：</strong>最近 20 条历史样本的滚动表格。</p>
+          </section>
+          <section class="guide-section">
+            <h3>下半部分 — CSV 离线分析</h3>
+            <p>支持两种 CSV 加载方式：</p>
+            <dl>
+              <dt>方式 1 — 上传本地 CSV 文件</dt>
+              <dd>点击文件选择框选取一个或多个 <code>.csv</code> 文件，选择对比指标（RTT / Loss / Jitter / Bitrate / FPS），点击 <strong>Analyze CSV</strong> 进行分析。</dd>
+              <dt>方式 2 — 加载服务端 Session CSV</dt>
+              <dd>点击 <strong>Load Sessions</strong> 从 WebRTC 服务拉取已完成（Finished）的测试会话列表，在下拉框中选择后点击 <strong>Load Session CSV</strong> 加载并分析。</dd>
+            </dl>
+            <p><strong>对比表格：</strong>展示每个 CSV 的基本信息（文件名、样本数、Room、Session、Peer、Remote）和各指标的平均值（Avg）、最小值（Min）、最大值（Max）。</p>
+            <p><strong>趋势图：</strong>以折线图叠加所有 CSV 的指标随时间（样本序号）变化的趋势，下方显示最佳值和图例。</p>
+            <p><strong>指标选择：</strong>切换 <code>csvMetricSelect</code> 下拉框可更换趋势图和最佳值计算指标。方向：RTT/Loss/Jitter 越小越好 → Best = min；Bitrate/FPS 越大越好 → Best = max。</p>
+          </section>
+          <section class="guide-section">
+            <h3>数据分析思路</h3>
+            <ol>
+              <li><strong>建立基线：</strong>用 NACK=on 的默认配置跑一轮测试，记录 RTT、Loss、Bitrate、FPS 的基线值。</li>
+              <li><strong>单变量对比：</strong>每次只改变一个变量（如 NACK on→off、bitrate 300→800 kbps、ABR off→on），保持其他条件不变。</li>
+              <li><strong>关注趋势而非单点：</strong>趋势图展示的是整个 session 过程中指标的变化，可以观察到启动阶段、稳定阶段、劣化阶段的特征。好的方案应该有稳定的曲线。</li>
+              <li><strong>多维度交叉：</strong>不要只看一个指标。例如：高 Bitrate 如果伴随高 Loss 则实际质量可能更差。建议同时对比 RTT + Loss + Bitrate。</li>
+              <li><strong>使用 Session 功能：</strong>在 RTCTraining 页面用 Start Session / Finish 记录完整会话，然后在 Dashboard 通过 Load Sessions 加载，可以系统性地对比多次实验。</li>
+            </ol>
+          </section>
+        </div>
+      </details>
       <section class="dashboard-control-bar">
         <h2 class="control-bar-title">WebRTC Service</h2>
         <div>
@@ -123,10 +168,11 @@
                 <th>Session</th>
                 <th>Peer</th>
                 <th>Remote</th>
-                <th>Avg RTT</th>
-                <th>Avg Loss</th>
-                <th>Avg Bitrate</th>
-                <th>Avg FPS</th>
+                <th>RTT (min–avg–max)</th>
+                <th>Loss (min–avg–max)</th>
+                <th>Jitter (min–avg–max)</th>
+                <th>Bitrate (min–avg–max)</th>
+                <th>FPS (min–avg–max)</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -135,7 +181,7 @@
         <div id="csvTrendComparison" class="csv-trend-comparison"></div>
       </section>
     </main>
-    <script src="/static/dashboard/dashboard.js?v=20260508-mesh-topology-nack-mode-workstation-layout-csv-analysis-session-trends"></script>
+    <script src="/static/dashboard/dashboard.js?v=20260508-stale-data-filter-chinese-labels"></script>
     <script>
       (function () {
         window.__RTCTrainingDashboardInlineBootstrap = true;

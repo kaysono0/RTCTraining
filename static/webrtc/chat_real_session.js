@@ -183,13 +183,91 @@
     }
   }
 
+  function parseSdp(sdp) {
+    var lines = (sdp || "").split(/\r?\n/);
+    var result = { session: {}, media: [] };
+    var currentMedia = null;
+
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      if (line.startsWith("v=")) {
+        result.session.version = line.slice(2);
+      } else if (line.startsWith("o=")) {
+        result.session.origin = line.slice(2);
+      } else if (line.startsWith("s=")) {
+        result.session.name = line.slice(2);
+      } else if (line.startsWith("t=")) {
+        result.session.timing = line.slice(2);
+      } else if (line.startsWith("m=")) {
+        if (currentMedia) result.media.push(currentMedia);
+        var mParts = line.slice(2).split(" ");
+        currentMedia = { type: mParts[0], port: mParts[1], protocol: mParts[2], codecs: [], feedback: [], ssrc: [] };
+      } else if (line.startsWith("a=rtpmap:") && currentMedia) {
+        var idx = line.indexOf(" ");
+        if (idx > 0) currentMedia.codecs.push(line.slice(idx + 1));
+      } else if (line.startsWith("a=ice-ufrag:") && currentMedia) {
+        currentMedia.iceUfrag = line.slice(13);
+      } else if (line.startsWith("a=ice-pwd:") && currentMedia) {
+        currentMedia.icePwd = line.slice(11);
+      } else if (line.startsWith("a=fingerprint:") && currentMedia) {
+        currentMedia.fingerprint = line.slice(15);
+      } else if (line.startsWith("a=setup:") && currentMedia) {
+        currentMedia.dtlsSetup = line.slice(8);
+      } else if (line.startsWith("a=rtcp-mux") && currentMedia) {
+        currentMedia.rtcpMux = true;
+      } else if (line.startsWith("a=rtcp-fb:") && currentMedia) {
+        var fbParts = line.slice(10).split(" ");
+        if (fbParts.length > 1) {
+          var fbType = fbParts.slice(1).join(" ");
+          if (currentMedia.feedback.indexOf(fbType) === -1) currentMedia.feedback.push(fbType);
+        }
+      } else if (line.startsWith("a=ssrc:") && currentMedia) {
+        var rest = line.slice(7);
+        var spaceIdx = rest.indexOf(" ");
+        if (spaceIdx > 0) {
+          var ssrcId = rest.slice(0, spaceIdx);
+          var attr = rest.slice(spaceIdx + 1);
+          var entry = currentMedia.ssrc.find(function (s) { return s.id === ssrcId; });
+          if (!entry) { entry = { id: ssrcId }; currentMedia.ssrc.push(entry); }
+          var colonIdx = attr.indexOf(":");
+          if (colonIdx > 0) entry[attr.slice(0, colonIdx)] = attr.slice(colonIdx + 1);
+        }
+      }
+    }
+    if (currentMedia) result.media.push(currentMedia);
+    return result;
+  }
+
+  function formatParsedSdp(parsed, type) {
+    var out = [];
+    out.push("Type: " + type);
+    if (parsed.session.version) out.push("Version: " + parsed.session.version);
+    if (parsed.session.origin) out.push("Origin: " + parsed.session.origin);
+    for (var i = 0; i < parsed.media.length; i++) {
+      var m = parsed.media[i];
+      out.push("");
+      out.push("Media #" + (i + 1) + ": " + m.type + " " + m.port + " " + m.protocol);
+      if (m.codecs.length) out.push("  Codecs: " + m.codecs.join(", "));
+      if (m.iceUfrag || m.icePwd) out.push("  ICE: ufrag=" + (m.iceUfrag || "?") + ", pwd=" + (m.icePwd || "?"));
+      if (m.fingerprint) out.push("  DTLS: setup=" + (m.dtlsSetup || "?") + ", fingerprint=" + m.fingerprint.slice(0, 30) + "...");
+      if (m.rtcpMux) out.push("  RTCP: mux");
+      if (m.feedback.length) out.push("  Feedback: " + m.feedback.join(", "));
+      for (var s = 0; s < m.ssrc.length; s++) {
+        out.push("  SSRC: " + m.ssrc[s].id + (m.ssrc[s].cname ? " cname=" + m.ssrc[s].cname : ""));
+      }
+    }
+    return out.join("\n");
+  }
+
   function summarizeSessionDescription(description) {
-    const sdp = description && description.sdp ? description.sdp : "";
-    const mediaLines = sdp.split("\n").filter((line) => line.startsWith("m=")).length;
-    const hasIceUfrag = sdp.includes("a=ice-ufrag:");
+    var sdp = description && description.sdp ? description.sdp : "";
+    var parsed = parseSdp(sdp);
+    var mediaLines = parsed.media.length;
+    var hasIceUfrag = sdp.indexOf("a=ice-ufrag:") !== -1;
     return {
-      payload_preview: `${description.type} sdp_len=${sdp.length} m_lines=${mediaLines} ice_ufrag=${hasIceUfrag}`,
-      payload_full: JSON.stringify(description, null, 2)
+      payload_preview: description.type + " sdp_len=" + sdp.length + " m_lines=" + mediaLines + " ice_ufrag=" + hasIceUfrag,
+      payload_parsed: formatParsedSdp(parsed, description.type),
+      payload_full: sdp
     };
   }
 

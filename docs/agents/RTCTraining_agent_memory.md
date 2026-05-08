@@ -335,10 +335,22 @@ TDD 规则：
 
 ## 10. 下一步建议
 
-若继续开发，应按 `docs/superpowers/plans/2026-04-22-rtc-training-phase-2-stats-dashboard.md` 进入 Phase 2B：
+当前已完成 Phase 2B 和 Phase 3 主线能力：
 
-1. Dashboard stats UI 合同测试。
-2. Dashboard 显示 room、peer pair、latest stats 和历史表格。
-3. Playwright 验证两页面 connected 后 Dashboard 显示 `stats_online`。
-4. 实现 `GET /stats/export.csv`。
-5. 再进入 Phase 3 的 Mesh、NACK、ABR、测试会话和多 CSV 对比。
+1. Dashboard live stats、peer pair、latest stats、history table。
+2. `GET /stats/export.csv`。
+3. 3 人 Mesh 观察。
+4. NACK on/off、SDP munging 和 stats/CSV 字段记录。
+5. 手动 sender bitrate 和简化 ABR，ABR 在 stats 上传周期自动调整 `maxBitrate`。
+6. 测试会话 start / finish / cancel、preset、弱网条件记录。
+7. 测试会话 CSV，按 `room_id / test_session_id / peer_id / remote_peer_id` 隔离。
+8. Dashboard 多 CSV 校验、统计、指标选择、SVG 趋势图。
+9. Dashboard 可直接列出已完成测试会话并加载 session CSV 分析。
+
+后续建议：
+
+1. 测试会话持久化索引：服务重启后扫描 `data/test_sessions/` 恢复历史 session 列表。
+2. Dashboard 多 session 批量选择：一键对比 NACK ON/OFF、ABR ON/OFF。
+3. CSV 趋势图增强：tooltip、min/max/avg 标尺、时间轴。
+4. 弱网条件从记录扩展到半自动或自动控制。
+5. Markdown 实验报告导出。

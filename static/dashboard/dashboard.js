@@ -226,14 +226,34 @@
     return Number.isFinite(value) ? value : null;
   }
 
-  function average(rows, field) {
-    const values = rows
+  function extractValues(rows, field) {
+    return rows
       .map((row) => numberFromRow(row, field))
       .filter((value) => value !== null);
+  }
+
+  function average(rows, field) {
+    const values = extractValues(rows, field);
     if (values.length === 0) {
       return null;
     }
     return Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(2));
+  }
+
+  function minValue(rows, field) {
+    const values = extractValues(rows, field);
+    if (values.length === 0) {
+      return null;
+    }
+    return Number(Math.min(...values).toFixed(2));
+  }
+
+  function maxValue(rows, field) {
+    const values = extractValues(rows, field);
+    if (values.length === 0) {
+      return null;
+    }
+    return Number(Math.max(...values).toFixed(2));
   }
 
   function uniqueLabel(rows, field) {
@@ -265,10 +285,20 @@
       peer_id: uniqueLabel(parsed.rows, "peer_id"),
       remote_peer_id: uniqueLabel(parsed.rows, "remote_peer_id"),
       avg_rtt_ms: average(parsed.rows, "rtt_ms"),
+      min_rtt_ms: minValue(parsed.rows, "rtt_ms"),
+      max_rtt_ms: maxValue(parsed.rows, "rtt_ms"),
       avg_packet_loss_rate: average(parsed.rows, "packet_loss_rate"),
+      min_packet_loss_rate: minValue(parsed.rows, "packet_loss_rate"),
+      max_packet_loss_rate: maxValue(parsed.rows, "packet_loss_rate"),
       avg_jitter_ms: average(parsed.rows, "jitter_ms"),
+      min_jitter_ms: minValue(parsed.rows, "jitter_ms"),
+      max_jitter_ms: maxValue(parsed.rows, "jitter_ms"),
       avg_bitrate_kbps: average(parsed.rows, "bitrate_kbps"),
+      min_bitrate_kbps: minValue(parsed.rows, "bitrate_kbps"),
+      max_bitrate_kbps: maxValue(parsed.rows, "bitrate_kbps"),
       avg_fps: average(parsed.rows, "fps"),
+      min_fps: minValue(parsed.rows, "fps"),
+      max_fps: maxValue(parsed.rows, "fps"),
       rows: parsed.rows
     };
   }
@@ -286,6 +316,16 @@
         ? (file[field] > best[field] ? file : best)
         : (file[field] < best[field] ? file : best);
     }, null);
+  }
+
+  function rangeCell(file, minField, avgField, maxField, suffix) {
+    const minVal = file[minField];
+    const avgVal = file[avgField];
+    const maxVal = file[maxField];
+    if (minVal === null || avgVal === null || maxVal === null) {
+      return "-";
+    }
+    return `${minVal} / ${avgVal} / ${maxVal}${suffix}`;
   }
 
   function renderCsvAnalysis(result) {
@@ -313,10 +353,11 @@
           file.test_session_id,
           file.peer_id,
           file.remote_peer_id,
-          formatMetric(file.avg_rtt_ms, " ms"),
-          formatMetric(file.avg_packet_loss_rate, "%"),
-          formatMetric(file.avg_bitrate_kbps, " kbps"),
-          formatMetric(file.avg_fps, "")
+          rangeCell(file, "min_rtt_ms", "avg_rtt_ms", "max_rtt_ms", " ms"),
+          rangeCell(file, "min_packet_loss_rate", "avg_packet_loss_rate", "max_packet_loss_rate", "%"),
+          rangeCell(file, "min_jitter_ms", "avg_jitter_ms", "max_jitter_ms", " ms"),
+          rangeCell(file, "min_bitrate_kbps", "avg_bitrate_kbps", "max_bitrate_kbps", " kbps"),
+          rangeCell(file, "min_fps", "avg_fps", "max_fps", "")
         ].forEach((value) => {
           const cell = document.createElement("td");
           cell.textContent = String(value);
@@ -364,6 +405,7 @@
     }
     chart.innerHTML = "";
     const metricName = csvAnalysisState.metric;
+    const metricConfig = CSV_METRICS[metricName] || CSV_METRICS.rtt_ms;
     const files = (result.files || []).filter((file) => file.ok);
     const series = files.map((file) => ({ file, points: csvSeries(file, metricName) }))
       .filter((item) => item.points.length > 0);
@@ -372,9 +414,15 @@
       return;
     }
 
-    const width = 720;
-    const height = 220;
-    const padding = 28;
+    const width = 780;
+    const height = 280;
+    const padLeft = 62;
+    const padRight = 28;
+    const padTop = 36;
+    const padBottom = 40;
+    const plotWidth = width - padLeft - padRight;
+    const plotHeight = height - padTop - padBottom;
+
     const allPoints = series.flatMap((item) => item.points);
     const minX = Math.min(...allPoints.map((point) => point.x));
     const maxX = Math.max(...allPoints.map((point) => point.x));
@@ -384,26 +432,104 @@
     const yRange = maxY - minY || 1;
     const colors = ["#23576b", "#b45309", "#15803d", "#7c3aed", "#be123c"];
 
-    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 " + width + " " + height);
     svg.setAttribute("role", "img");
-    svg.setAttribute("aria-label", `${CSV_METRICS[metricName].label} trend`);
+    svg.setAttribute("aria-label", metricConfig.label + " trend over sample index");
 
-    const axis = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    axis.setAttribute("d", `M ${padding} ${padding} L ${padding} ${height - padding} L ${width - padding} ${height - padding}`);
+    // Chart title
+    var title = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    title.setAttribute("x", String(width / 2));
+    title.setAttribute("y", String(padTop / 2 + 4));
+    title.setAttribute("text-anchor", "middle");
+    title.setAttribute("fill", "#15202b");
+    title.setAttribute("font-size", "13");
+    title.setAttribute("font-weight", "bold");
+    title.textContent = metricConfig.label + " Trend (per sample)";
+    svg.appendChild(title);
+
+    // Grid lines (horizontal)
+    var gridLines = 5;
+    for (var g = 0; g <= gridLines; g++) {
+      var gy = padTop + (plotHeight * g / gridLines);
+      var gridLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      gridLine.setAttribute("x1", String(padLeft));
+      gridLine.setAttribute("y1", String(Number(gy.toFixed(1))));
+      gridLine.setAttribute("x2", String(padLeft + plotWidth));
+      gridLine.setAttribute("y2", String(Number(gy.toFixed(1))));
+      gridLine.setAttribute("stroke", "#e5eaed");
+      gridLine.setAttribute("stroke-width", "1");
+      svg.appendChild(gridLine);
+
+      // Y-axis tick labels
+      var yVal = minY + yRange * (1 - g / gridLines);
+      var yLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      yLabel.setAttribute("x", String(padLeft - 6));
+      yLabel.setAttribute("y", String(Number((gy + 3).toFixed(1))));
+      yLabel.setAttribute("text-anchor", "end");
+      yLabel.setAttribute("fill", "#53636b");
+      yLabel.setAttribute("font-size", "10");
+      yLabel.textContent = String(Number(yVal.toFixed(1)));
+      svg.appendChild(yLabel);
+    }
+
+    // Y-axis label
+    var yAxisLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    yAxisLabel.setAttribute("x", String(-(padTop + plotHeight / 2)));
+    yAxisLabel.setAttribute("y", "14");
+    yAxisLabel.setAttribute("transform", "rotate(-90)");
+    yAxisLabel.setAttribute("text-anchor", "middle");
+    yAxisLabel.setAttribute("fill", "#53636b");
+    yAxisLabel.setAttribute("font-size", "11");
+    yAxisLabel.textContent = metricConfig.label + " (" + metricConfig.suffix.trim() + ")";
+    svg.appendChild(yAxisLabel);
+
+    // X-axis label
+    var xAxisLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    xAxisLabel.setAttribute("x", String(padLeft + plotWidth / 2));
+    xAxisLabel.setAttribute("y", String(height - 8));
+    xAxisLabel.setAttribute("text-anchor", "middle");
+    xAxisLabel.setAttribute("fill", "#53636b");
+    xAxisLabel.setAttribute("font-size", "11");
+    xAxisLabel.textContent = "Sample Index";
+    svg.appendChild(xAxisLabel);
+
+    // X-axis tick labels
+    var xTicks = 6;
+    for (var h = 0; h <= xTicks; h++) {
+      var xVal = minX + xRange * h / xTicks;
+      var gx = padLeft + plotWidth * h / xTicks;
+      var xTickLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      xTickLabel.setAttribute("x", String(Number(gx.toFixed(1))));
+      xTickLabel.setAttribute("y", String(height - padBottom + 16));
+      xTickLabel.setAttribute("text-anchor", "middle");
+      xTickLabel.setAttribute("fill", "#53636b");
+      xTickLabel.setAttribute("font-size", "10");
+      xTickLabel.textContent = String(Math.round(xVal));
+      svg.appendChild(xTickLabel);
+    }
+
+    // Axis lines (L-shape)
+    var axis = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    axis.setAttribute("d", [
+      "M", padLeft, padTop,
+      "L", padLeft, padTop + plotHeight,
+      "L", padLeft + plotWidth, padTop + plotHeight
+    ].join(" "));
     axis.setAttribute("fill", "none");
     axis.setAttribute("stroke", "#9aa8af");
-    axis.setAttribute("stroke-width", "1");
+    axis.setAttribute("stroke-width", "1.5");
     svg.appendChild(axis);
 
-    series.forEach((item, index) => {
-      const points = item.points.map((point) => {
-        const x = padding + ((point.x - minX) / xRange) * (width - padding * 2);
-        const y = height - padding - ((point.y - minY) / yRange) * (height - padding * 2);
-        return `${Number(x.toFixed(1))},${Number(y.toFixed(1))}`;
+    // Data polylines
+    series.forEach(function (item, index) {
+      var pts = item.points.map(function (point) {
+        var x = padLeft + ((point.x - minX) / xRange) * plotWidth;
+        var y = padTop + plotHeight - ((point.y - minY) / yRange) * plotHeight;
+        return Number(x.toFixed(1)) + "," + Number(y.toFixed(1));
       }).join(" ");
-      const line = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
-      line.setAttribute("points", points);
+      var line = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      line.setAttribute("points", pts);
       line.setAttribute("fill", "none");
       line.setAttribute("stroke", colors[index % colors.length]);
       line.setAttribute("stroke-width", "2.5");
@@ -411,14 +537,16 @@
       svg.appendChild(line);
     });
 
-    const legend = document.createElement("div");
+    // Legend
+    var legend = document.createElement("div");
     legend.className = "csv-trend-legend";
-    series.forEach((item, index) => {
-      const label = document.createElement("span");
+    series.forEach(function (item, index) {
+      var label = document.createElement("span");
       label.style.setProperty("--series-color", colors[index % colors.length]);
       label.textContent = item.file.name;
       legend.appendChild(label);
     });
+
     chart.append(svg, legend);
   }
 
@@ -572,39 +700,39 @@
 
     const missing = missingFields(latest);
     const rows = [
-      ["Peer", peerPairLabel(latest.peer_id, latest.remote_peer_id, labels)],
-      ["Connection", formatMetric(metric(latest, "connection_state"), "")],
-      ["ICE", formatMetric(metric(latest, "ice_connection_state"), "")],
-      ["Candidate Pair", candidatePair(latest)],
-      ["RTT", formatMetric(metric(latest, "rtt_ms"), " ms")],
-      ["Loss", formatMetric(metric(latest, "packets_lost"), "")],
-      ["Loss Rate", formatMetric(metric(latest, "packet_loss_rate"), "%")],
+      ["Peer (通信对端)", peerPairLabel(latest.peer_id, latest.remote_peer_id, labels)],
+      ["Connection (连接状态)", formatMetric(metric(latest, "connection_state"), "")],
+      ["ICE (ICE连接状态)", formatMetric(metric(latest, "ice_connection_state"), "")],
+      ["Candidate Pair (候选地址对)", candidatePair(latest)],
+      ["RTT (往返时延)", formatMetric(metric(latest, "rtt_ms"), " ms")],
+      ["Loss (丢包数)", formatMetric(metric(latest, "packets_lost"), "")],
+      ["Loss Rate (丢包率)", formatMetric(metric(latest, "packet_loss_rate"), "%")],
       [
-        "Packets",
+        "Packets (数据包)",
         `${formatMetric(metric(latest, "packets_sent"), "")} sent / ${formatMetric(metric(latest, "packets_received"), "")} recv / ${formatMetric(metric(latest, "packets_lost"), "")} lost`
       ],
-      ["Jitter", formatMetric(metric(latest, "jitter_ms"), " ms")],
-      ["Bitrate", formatMetric(metric(latest, "bitrate_kbps"), " kbps")],
-      ["Available Out", formatMetric(metric(latest, "available_outgoing_bitrate_kbps"), " kbps")],
+      ["Jitter (抖动)", formatMetric(metric(latest, "jitter_ms"), " ms")],
+      ["Bitrate (码率)", formatMetric(metric(latest, "bitrate_kbps"), " kbps")],
+      ["Available Out (可用上行码率)", formatMetric(metric(latest, "available_outgoing_bitrate_kbps"), " kbps")],
       [
-        "Bytes",
+        "Bytes (字节数)",
         `${formatMetric(metric(latest, "bytes_sent"), "")} sent / ${formatMetric(metric(latest, "bytes_received"), "")} recv`
       ],
-      ["FPS", formatMetric(metric(latest, "fps"), "")],
+      ["FPS (帧率)", formatMetric(metric(latest, "fps"), "")],
       [
-        "Resolution",
+        "Resolution (分辨率)",
         `${formatMetric(metric(latest, "frame_width"), "")} x ${formatMetric(metric(latest, "frame_height"), "")}`
       ],
       [
-        "Frames",
+        "Frames (帧处理)",
         `${formatMetric(metric(latest, "frames_sent"), "")} sent / ${formatMetric(metric(latest, "frames_received"), "")} recv / ${formatMetric(metric(latest, "frames_decoded"), "")} decoded`
       ],
-      ["Dropped", formatMetric(metric(latest, "frames_dropped"), "")],
-      ["Codec", formatMetric(metric(latest, "codec"), "")],
-      ["NACK Enabled", formatMetric(metric(latest, "nack_enabled"), "")],
-      ["NACK Mode", formatMetric(metric(latest, "nack_mode"), "")],
-      ["Recovery", `NACK ${formatMetric(metric(latest, "nack_count"), "")} / PLI ${formatMetric(metric(latest, "pli_count"), "")} / FIR ${formatMetric(metric(latest, "fir_count"), "")}`],
-      ["Missing Fields", missing.length ? missing.join(", ") : "none"]
+      ["Dropped (丢帧数)", formatMetric(metric(latest, "frames_dropped"), "")],
+      ["Codec (编码格式)", formatMetric(metric(latest, "codec"), "")],
+      ["NACK Enabled (NACK启用)", formatMetric(metric(latest, "nack_enabled"), "")],
+      ["NACK Mode (NACK模式)", formatMetric(metric(latest, "nack_mode"), "")],
+      ["Recovery (丢包恢复)", `NACK ${formatMetric(metric(latest, "nack_count"), "")} / PLI ${formatMetric(metric(latest, "pli_count"), "")} / FIR ${formatMetric(metric(latest, "fir_count"), "")}`],
+      ["Missing Fields (缺失字段)", missing.length ? missing.join(", ") : "none"]
     ];
 
     for (const [label, value] of rows) {

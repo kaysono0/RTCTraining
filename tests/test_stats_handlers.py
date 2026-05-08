@@ -169,6 +169,36 @@ async def test_dashboard_snapshot_returns_members_stats_and_revision(client):
 
 
 @pytest.mark.asyncio
+async def test_dashboard_snapshot_filters_out_left_peers(client):
+    await client.post(
+        "/rooms/join",
+        json={"room_id": "room1", "client_id": "peer-a", "display_name": "Alice"},
+    )
+    await client.post(
+        "/rooms/join",
+        json={"room_id": "room1", "client_id": "peer-b", "display_name": "Bob"},
+    )
+    await client.post("/stats", json=stats_payload())
+
+    await client.post(
+        "/rooms/leave",
+        json={"room_id": "room1", "client_id": "peer-a"},
+    )
+
+    response = await client.get("/dashboard/snapshot?room_id=room1")
+    payload = await response.json()
+
+    assert response.status == 200
+    assert payload["ok"] is True
+    assert payload["data"]["members"] == [
+        {"peer_id": "peer-b", "display_name": "Bob"},
+    ]
+    assert payload["data"]["peers"] == []
+    assert payload["data"]["latest"] == []
+    assert payload["data"]["history"] == []
+
+
+@pytest.mark.asyncio
 async def test_stats_export_csv_returns_room_scoped_history(client):
     await client.post("/stats", json=stats_payload(room_id="room1"))
     await client.post("/stats", json=stats_payload(room_id="room2"))

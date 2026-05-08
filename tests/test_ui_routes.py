@@ -25,10 +25,10 @@ async def test_webrtc_homepage_loads_experiment_shell(webrtc_client):
     assert response.status == 200
     assert response.headers["Cache-Control"] == "no-store"
     assert "RTCTraining" in body
-    assert re.search(r'href="/static/webrtc/chat_real\.css\?v=[^"]*mobile-media[^"]*"', body)
+    assert re.search(r'href="/static/webrtc/chat_real\.css\?v=[^"]*sdp-parsed[^"]*"', body)
     assert re.search(r'src="/static/webrtc/chat_real_nack\.js\?v=[^"]*nack-mode[^"]*mobile-media[^"]*"', body)
     assert re.search(r'src="/static/webrtc/chat_real_test_session\.js\?v=[^"]*test-session[^"]*"', body)
-    assert re.search(r'src="/static/webrtc/chat_real_session\.js\?v=[^"]*nack-mode[^"]*mobile-media[^"]*"', body)
+    assert re.search(r'src="/static/webrtc/chat_real_session\.js\?v=[^"]*mobile-media[^"]*"', body)
     assert re.search(r'src="/static/webrtc/chat_real_stats\.js\?v=[^"]*nack-mode[^"]*mobile-media[^"]*"', body)
     assert re.search(r'src="/static/webrtc/chat_real_bootstrap\.js\?v=[^"]*nack-mode[^"]*mobile-media[^"]*"', body)
     assert "chat_real_nack.js" in body
@@ -178,10 +178,11 @@ async def test_dashboard_homepage_declares_complete_stats_surface(dashboard_clie
         "Session",
         "Peer",
         "Remote",
-        "Avg RTT",
-        "Avg Loss",
-        "Avg Bitrate",
-        "Avg FPS",
+        "RTT (min–avg–max)",
+        "Loss (min–avg–max)",
+        "Jitter (min–avg–max)",
+        "Bitrate (min–avg–max)",
+        "FPS (min–avg–max)",
     ]
     assert "window.__RTCTrainingDashboardInlineBootstrap" in body
     assert "window.__RTCTrainingDashboardInlineServiceCheckPath" in body
@@ -195,7 +196,7 @@ async def test_dashboard_homepage_cache_contract(dashboard_client):
     assert response.status == 200
     assert response.headers["Cache-Control"] == "no-store"
     assert re.search(r'href="/static/dashboard/dashboard\.css\?v=[^"]+"', body)
-    assert re.search(r'src="/static/dashboard/dashboard\.js\?v=[^"]*mesh-topology[^"]*nack-mode[^"]*"', body)
+    assert re.search(r'src="/static/dashboard/dashboard\.js\?v=[^"]*stale-data[^"]*chinese-labels[^"]*"', body)
 
 
 @pytest.mark.asyncio
@@ -221,7 +222,7 @@ async def test_dashboard_static_assets_are_versioned_and_loadable(dashboard_clie
     assert "loadTestSessionCsvList" in js_body
     assert "loadSelectedSessionCsv" in js_body
     assert "REQUIRED_CSV_FIELDS" in js_body
-    assert '"NACK Mode"' in js_body
+    assert '"NACK Mode (NACK模式)"' in js_body
 
 
 @pytest.mark.asyncio

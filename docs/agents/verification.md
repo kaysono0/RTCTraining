@@ -118,14 +118,90 @@ curl "http://127.0.0.1:8081/api/webrtc/stats/peers?origin=https%3A%2F%2Flocalhos
 { "ok": false, "error": { "code": "...", "message": "...", "details": {} } }
 ```
 
-## 5. Playwright 注意事项
+## 5. NACK A/B 手工验证
+
+启动 WebRTC 和 Dashboard：
+
+```bash
+make run-webrtc
+make run-dashboard
+```
+
+打开：
+
+```text
+https://localhost:8080
+http://127.0.0.1:8081
+```
+
+分别运行两组实验：
+
+- `NACK on`
+- `NACK off`
+
+约束：
+
+- NACK 模式必须在 Join 前选择。
+- 两组实验使用同一个房间、同样人数、同样网络条件。
+- 当前版本 connected 后切换 NACK 不会自动重新协商，只会更新页面状态和后续 stats 字段。
+
+协商验证：
+
+- 在 WebRTC 页面 Timeline 展开 `sent_offer` 或 `sent_answer`。
+- `NACK on` 时，video section 通常保留 `a=rtcp-fb:<pt> nack`。
+- `NACK off` 时，video section 下的 `a=rtcp-fb:<pt> nack` 和 `nack pli` 应被移除。
+
+Dashboard 观察字段：
+
+- `NACK Mode`
+- `Recovery`
+- `RTT`
+- `Loss Rate`
+- `Jitter`
+- `Bitrate`
+- `FPS`
+- `Resolution`
+
+导出 CSV：
+
+```text
+https://localhost:8080/stats/export.csv?room_id=room1
+```
+
+CSV 分析字段：
+
+```text
+nack_enabled
+nack_mode
+nack_count
+pli_count
+fir_count
+rtt_ms
+packets_lost
+packet_loss_rate
+jitter_ms
+bitrate_kbps
+fps
+frame_width
+frame_height
+```
+
+分析规则：
+
+- 按同一个 peer pair 方向对比，不混合 `A -> B` 和 `B -> A`。
+- 先确认 `nack_enabled` / `nack_mode` 分组正确。
+- 对比 `packet_loss_rate`、`packets_lost`、`fps`、`bitrate_kbps`、`jitter_ms`。
+- 弱网下 `NACK off` 更容易出现丢包升高、FPS 波动和画面恢复慢。
+- NACK 计数差异受网络和浏览器实现影响，首版只作为观察项，不作为硬性通过标准。
+
+## 6. Playwright 注意事项
 
 - 首版只支持桌面 Chrome。
 - 面对本地自签名 HTTPS 时使用 `ignore_https_errors`。
 - E2E 使用 fake media。
 - WebRTC 页面状态通过 `window.__RTCTrainingTestHooks` 暴露给测试。
 
-## 6. 沙箱和提权注意事项
+## 7. 沙箱和提权注意事项
 
 以下动作在受限环境中可能需要提权：
 
@@ -138,7 +214,7 @@ curl "http://127.0.0.1:8081/api/webrtc/stats/peers?origin=https%3A%2F%2Flocalhos
 
 普通沙箱里的 `curl` 可能连不到提权启动的服务。若服务会话仍在运行但普通 `curl` 失败，优先按沙箱网络隔离排查。
 
-## 7. 验证完成标准
+## 8. 验证完成标准
 
 功能完成前至少满足：
 

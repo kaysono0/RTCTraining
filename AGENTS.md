@@ -163,7 +163,6 @@ make test
 - 相关单元测试通过。
 - 涉及浏览器行为时，Playwright E2E 通过。
 - 涉及 Dashboard 时，WebRTC 和 Dashboard 两个服务都能启动。
-- 不提交 `.venv/`、`certs/`、`data/`、`.agents/`、`.claude/`、`.qwen/`、`.trae/`、`skills/` 等本地文件。
 
 ## 13. AGENTS.md 维护规则
 

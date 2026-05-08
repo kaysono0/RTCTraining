@@ -954,6 +954,27 @@ health =
 
 - 该能力用于学习实验，不承诺跨所有浏览器完全一致。
 - 页面必须明确当前 NACK 模式。
+- 首版 NACK 模式在建联前选择，创建 Offer / Answer 时生效。已 connected 后切换只更新页面状态和后续 stats 字段，不自动触发 renegotiation。
+
+NACK A/B 手工实验流程：
+
+1. 固定同一房间、同一参与人数、同一网络条件，分别运行 `NACK on` 和 `NACK off` 两组实验。
+2. 每组实验都在 Join 前选择 NACK 模式。
+3. 建联后在 Timeline 展开 `sent_offer` 或 `sent_answer`：
+   - `NACK on`：video section 通常保留 `a=rtcp-fb:<pt> nack`。
+   - `NACK off`：video section 下的 `a=rtcp-fb:<pt> nack` 和 `nack pli` 被移除。
+   - audio section 不作为主要判断对象。
+4. 在 Dashboard 观察 `NACK Mode`、`Recovery`、`RTT`、`Loss Rate`、`Jitter`、`Bitrate`、`FPS`、`Resolution`。
+5. 导出 CSV 后按同一 peer pair 方向对比，不混合 `A -> B` 和 `B -> A`。
+
+NACK 数据分析重点：
+
+- `nack_enabled` / `nack_mode` 用于确认实验分组。
+- `nack_count`、`pli_count`、`fir_count` 用于观察恢复请求。
+- `packets_lost`、`packet_loss_rate` 用于观察丢包。
+- `fps`、`bitrate_kbps`、`jitter_ms` 用于观察画面稳定性。
+- 弱网下 `NACK off` 更容易出现丢包升高、FPS 波动、画面恢复慢等现象。
+- 首版不把弱网下的 NACK 计数差异作为自动化门禁，因为真实网络和浏览器实现会带来波动。
 
 ### 11.4 发送端参数设置
 
@@ -982,23 +1003,25 @@ RTCRtpSender.setParameters()
 
 ABR 只调节 `maxBitrate`，不联动完整分辨率和帧率策略。
 
-默认参数：
+当前实现参数：
 
 ```text
-windowSize = 5
-badLossThreshold = 0.05
-badRttThresholdMs = 250
-goodLossThreshold = 0.01
-goodRttThresholdMs = 120
-decreaseFactor = 0.85
-increaseFactor = 1.08
+minBitrateKbps = 300
+maxBitrateKbps = 1500
+stepKbps = 150
+lossThresholdPercent = 5
+rttThresholdMs = 300
 ```
 
 行为：
 
-- 最近窗口 loss 或 RTT 差，降低码率。
-- 最近窗口 loss 和 RTT 好，谨慎升高码率。
-- 每次动作写入页面日志和 stats payload。
+- `ABR on` 后，`bitrateMode` 进入 `abr`。
+- stats 上传周期内自动运行一次 ABR 决策。
+- `packet_loss_rate >= lossThresholdPercent` 或 `rtt_ms >= rttThresholdMs` 时降低 `maxBitrate`。
+- `packet_loss_rate < lossThresholdPercent / 2`、`rtt_ms < rttThresholdMs / 2` 且 `fps >= 20` 时升高 `maxBitrate`。
+- 其它情况保持当前目标码率。
+- 每次动作写入 stats payload 和 CSV：`bitrate_mode`、`sender_max_bitrate_bps`、`abr_mode`、`abr_target_bitrate_bps`、`abr_decision`。
+- 当前 ABR 只改变发送端 video sender 的 `encodings[0].maxBitrate`，不触发 renegotiation。
 
 ### 11.6 测试会话
 
@@ -1018,58 +1041,98 @@ POST /stats/test/start
 
 后续 POST /stats
   -> 携带 test_session_id
-  -> 服务端把样本追加到该 session
+  -> 服务端按 room_id / test_session_id / peer_id / remote_peer_id 记录样本
 
 POST /stats/test/finish
-  -> 导出 CSV
-  -> 返回 output_path
+  -> 按 remote_peer_id 生成 CSV
+  -> 返回 csv_files
 
 POST /stats/test/cancel
-  -> 丢弃 session
+  -> 标记 session 为 canceled
+
+GET /stats/test/sessions?room_id=room1
+  -> 返回已 finished 的测试会话列表
+
+GET /stats/test/download/{room_id}/{test_session_id}/{peer_id}/{remote_peer_id}.csv
+  -> 下载指定测试会话 CSV
 ```
 
 ### 11.7 测试会话元数据
 
 ```json
 {
-  "session_id": "session_20260421_150000",
-  "profile": "weak-network",
-  "duration_sec": 60,
-  "note": "nack-off-720p",
-  "nack_mode": "disabled",
-  "nack_enabled": false,
-  "role": "caller",
-  "started_at": "2026-04-21T15:00:00+08:00",
-  "expected_end_at": "2026-04-21T15:01:00+08:00",
+  "test_session_id": "session-uuid",
+  "room_id": "room1",
+  "peer_id": "peer-a",
+  "preset": "nack_on_abr_on",
+  "metadata": {
+    "note": "baseline"
+  },
+  "weak_network": {
+    "profile": "loss_5"
+  },
+  "started_at": 1778207000.0,
+  "finished_at": null,
   "status": "running",
   "sample_count": 0,
-  "output_path": null
+  "csv_files": []
 }
 ```
+
+WebRTC 页面会显示当前 session 的 `test_session_id`、preset、弱网条件、样本数、duration 和 CSV 下载链接。
+
+当前 preset：
+
+```text
+manual
+nack_on
+nack_off
+bitrate_300
+bitrate_800
+nack_on_abr_off
+nack_off_abr_off
+abr_simple
+nack_on_abr_on
+nack_off_abr_on
+```
+
+preset 会在 start session 前应用到页面控制：
+
+- `nack_*` 控制 `nack_mode`。
+- `bitrate_*` 控制发送端手动 `maxBitrate`。
+- `abr_*` 控制 `ABR on/off`。
+- 当前弱网条件只记录，不自动修改系统网络。
 
 ### 11.8 CSV 导出
 
 目录：
 
 ```text
-data/test_sessions/
+data/test_sessions/{room_id}/{test_session_id}/{peer_id}/{remote_peer_id}.csv
 ```
 
-字段前缀固定：
+字段固定包含：
 
 ```text
 sample_index,timestamp,room_id,test_session_id,peer_id,remote_peer_id,
-rtt_ms,packet_loss,jitter_ms,bitrate_kbps,frames_per_second,
-resolution,nack_enabled,abr_mode,health_score
+connection_state,ice_connection_state,rtt_ms,packets_lost,packet_loss_rate,
+jitter_ms,bitrate_kbps,available_outgoing_bitrate_kbps,fps,frame_width,
+frame_height,codec,local_candidate_type,remote_candidate_type,
+candidate_pair_protocol,packets_sent,packets_received,bytes_sent,
+bytes_received,frames_sent,frames_received,frames_encoded,frames_decoded,
+frames_dropped,nack_enabled,nack_mode,nack_count,pli_count,fir_count,
+quality_limitation_reason,bitrate_mode,sender_max_bitrate_bps,abr_mode,
+abr_target_bitrate_bps,abr_decision
 ```
 
 要求：
 
 - 允许 0 样本导出，只输出表头。
-- 文件名应包含 profile、nack_mode、duration、timestamp、note。
 - 测试会话必须复用实时 stats，不单独采第二套 stats。
 - 测试会话 CSV 必须只包含同一个 `test_session_id` 对应的样本。
 - 多房间并行或连续实验时，CSV 不允许混入其他 `room_id` 的样本。
+- 同一个测试会话内，每个 `remote_peer_id` 生成一个 CSV，避免混合不同 peer pair 方向。
+- Dashboard CSV 校验要求至少包含 `sample_index`、`timestamp`、`room_id`、`test_session_id`、`peer_id`、`remote_peer_id`、`rtt_ms`、`packet_loss_rate`、`jitter_ms`、`bitrate_kbps`、`fps`、`nack_mode`、`abr_mode`。
 
 ### 11.9 验收标准
 
@@ -1080,6 +1143,8 @@ resolution,nack_enabled,abr_mode,health_score
 - ABR 能根据窗口指标调整 `maxBitrate`。
 - 测试会话能 start / finish / cancel。
 - finish 后能生成 CSV。
+- Dashboard 能直接列出已完成测试会话并加载对应 CSV。
+- Dashboard 能对多 CSV 展示统计表和趋势图。
 
 ## 12. 阶段 4：测试体系和文档收口
 
@@ -1108,6 +1173,15 @@ NACK / ABR 测试门禁策略：
 - 首版必须提供手工实验步骤和记录模板，用于验证 NACK on/off 与 ABR 行为。
 - 增强版开始，NACK / ABR 需要进入自动回归门禁。
 - 增强版自动门禁至少覆盖：NACK 模式状态字段、SDP munging 结果、ABR 纯函数决策、`maxBitrate` 参数更新、CSV schema 中的 `nack_enabled` 与 `abr_mode` 字段。
+
+NACK 首版自动化覆盖边界：
+
+- 页面字段：NACK 控件、状态字段、测试钩子。
+- SDP 行为：disabled 时移除 video NACK feedback，enabled 时不主动移除。
+- stats 字段：`nack_enabled`、`nack_mode`、`nack_count`、`pli_count`、`fir_count`。
+- CSV schema：导出 `nack_enabled` 和 `nack_mode`。
+- Dashboard：latest stats 显示 NACK 模式和恢复计数。
+- 缓存兼容：WebRTC 页面 no-store，静态 JS 使用版本参数，旧 HTML 缺 NACK 控件时 bootstrap 不崩溃。
 
 ### 12.2 推荐测试文件
 
@@ -1388,11 +1462,14 @@ Dashboard 路由：
 
 ```text
 GET /
-GET /api/realtime
-GET /api/history
-GET /api/peers
-GET /api/charts
-POST /api/csv/compare
+GET /api/webrtc/members
+GET /api/webrtc/stats
+GET /api/webrtc/stats/history
+GET /api/webrtc/stats/peers
+GET /api/webrtc/dashboard/snapshot
+POST /api/webrtc/clear_stats
+GET /api/webrtc/stats/test/sessions
+GET /api/webrtc/stats/test/download/{file_path}
 ```
 
 路由边界：
@@ -1443,10 +1520,11 @@ stats 区
   health
 
 测试会话区
-  profile
-  duration
+  preset
+  weak network
   note
   start / finish / cancel
+  session id / samples / duration
   CSV 下载结果
 
 日志区
@@ -1487,19 +1565,20 @@ stats 区
   health 图
 
 底部工具
-  导出 CSV
-  选择多个 CSV 对比
-  实验备注
+  上传多个 CSV 对比
+  选择已完成测试会话 CSV
+  CSV 趋势图
+  CSV 统计表
 ```
 
 CSV 对比工作流：
 
-1. 用户在 Dashboard 中选择或上传多个测试会话 CSV。
-2. 页面解析每个 CSV 的 session 元数据和指标字段。
-3. 用户选择要叠加的指标：RTT、loss、jitter、bitrate、health。
-4. 图表按相对时间轴叠加展示多条曲线。
-5. 表格并列展示每个 CSV 的样本数、平均值、最大值、最小值和缺失字段。
-6. 字段不一致时不阻塞展示，但必须在页面标记缺失字段。
+1. 用户在 Dashboard 中上传多个本地 CSV，或从已完成测试会话列表选择 CSV。
+2. 页面校验每个 CSV 的必要字段。
+3. 用户选择要对比的指标：RTT、loss、jitter、bitrate、FPS。
+4. 页面用 SVG 折线图叠加展示不同 CSV 的趋势。
+5. 表格并列展示每个 CSV 的样本数、room、session、peer pair、平均 RTT、平均 loss、平均 bitrate 和平均 FPS。
+6. 字段不一致时不进入 ready 状态，并在页面标记缺失字段。
 
 多 CSV 对比首版不要求复杂统计检验，只要求能帮助用户直接观察不同实验会话的趋势差异。
 
@@ -1730,7 +1809,7 @@ not_found         room、peer、session 或文件不存在
 room_full         房间人数超过上限
 conflict          重复加入、重复开始 session 等状态冲突
 invalid_state     当前状态不允许该操作
-service_unready   Dashboard 无法访问 WebRTC 服务
+service_unreachable Dashboard 无法访问 WebRTC 服务
 internal_error    未预期异常
 ```
 
@@ -2134,19 +2213,13 @@ test_session_id=session_20260421_150000
 ```json
 {
   "room_id": "room1",
-  "owner_peer_id": "client_a",
-  "profile": "baseline",
-  "duration_sec": 60,
-  "note": "baseline-720p",
-  "nack_mode": "enabled",
-  "nack_enabled": true,
-  "abr_mode": "manual",
-  "network_profile": {
-    "network_type": "wifi",
-    "tool": "manual",
-    "packet_loss": null,
-    "latency_ms": null,
-    "bandwidth_kbps": null
+  "peer_id": "peer-a",
+  "preset": "nack_on_abr_on",
+  "metadata": {
+    "note": "baseline-720p"
+  },
+  "weak_network": {
+    "profile": "loss_5"
   }
 }
 ```
@@ -2157,21 +2230,32 @@ test_session_id=session_20260421_150000
 {
   "ok": true,
   "data": {
-    "test_session_id": "session_20260421_150000",
-    "room_id": "room1",
-    "status": "running",
-    "started_at": "2026-04-21T15:00:00+08:00",
-    "expected_end_at": "2026-04-21T15:01:00+08:00",
-    "sample_count": 0
+    "session": {
+      "test_session_id": "session-uuid",
+      "room_id": "room1",
+      "peer_id": "peer-a",
+      "preset": "nack_on_abr_on",
+      "metadata": {
+        "note": "baseline-720p"
+      },
+      "weak_network": {
+        "profile": "loss_5"
+      },
+      "status": "running",
+      "started_at": 1778207000.0,
+      "finished_at": null,
+      "sample_count": 0,
+      "csv_files": []
+    }
   }
 }
 ```
 
 规则：
 
-- 同一 `room_id` 首版只允许一个 running session。
-- 重复 start 时返回 `conflict`。
-- `profile` 必须来自预设列表或为 `custom`。
+- `room_id` 和 `peer_id` 必填。
+- 同一 `room_id` / `peer_id` 可以通过 `TestSessionStore.running()` 查询最新 running session。
+- `preset`、`metadata`、`weak_network` 原样进入 session 元数据。
 
 #### POST /stats/test/finish
 
@@ -2179,8 +2263,7 @@ test_session_id=session_20260421_150000
 
 ```json
 {
-  "room_id": "room1",
-  "test_session_id": "session_20260421_150000"
+  "test_session_id": "session-uuid"
 }
 ```
 
@@ -2190,11 +2273,20 @@ test_session_id=session_20260421_150000
 {
   "ok": true,
   "data": {
-    "test_session_id": "session_20260421_150000",
-    "status": "finished",
-    "sample_count": 120,
-    "output_path": "data/test_sessions/baseline_enabled_60s_20260421_150000.csv",
-    "report_path": "data/test_sessions/baseline_enabled_60s_20260421_150000.md"
+    "session": {
+      "test_session_id": "session-uuid",
+      "status": "finished",
+      "sample_count": 120,
+      "csv_files": [
+        {
+          "room_id": "room1",
+          "test_session_id": "session-uuid",
+          "peer_id": "peer-a",
+          "remote_peer_id": "peer-b",
+          "download_url": "/stats/test/download/room1/session-uuid/peer-a/peer-b.csv"
+        }
+      ]
+    }
   }
 }
 ```
@@ -2202,8 +2294,9 @@ test_session_id=session_20260421_150000
 规则：
 
 - 允许 0 样本 finish。
-- finish 后不再接收该 session 的样本。
-- Markdown report 是增强版能力；首版可返回 `null`。
+- finish 会从 `StatsStore` 按 `room_id`、`peer_id`、`test_session_id` 取样本。
+- 每个 `remote_peer_id` 输出一个 CSV。
+- Markdown report 是增强版能力，当前接口不返回 report。
 
 #### POST /stats/test/cancel
 
@@ -2211,8 +2304,7 @@ test_session_id=session_20260421_150000
 
 ```json
 {
-  "room_id": "room1",
-  "test_session_id": "session_20260421_150000"
+  "test_session_id": "session-uuid"
 }
 ```
 
@@ -2222,11 +2314,60 @@ test_session_id=session_20260421_150000
 {
   "ok": true,
   "data": {
-    "test_session_id": "session_20260421_150000",
-    "status": "cancelled"
+    "session": {
+      "test_session_id": "session-uuid",
+      "status": "canceled"
+    }
   }
 }
 ```
+
+#### GET /stats/test/sessions
+
+查询参数：
+
+```text
+room_id=room1
+```
+
+响应：
+
+```json
+{
+  "ok": true,
+  "data": {
+    "sessions": [
+      {
+        "test_session_id": "session-uuid",
+        "room_id": "room1",
+        "peer_id": "peer-a",
+        "preset": "abr_simple",
+        "weak_network": {
+          "profile": "loss_5"
+        },
+        "status": "finished",
+        "sample_count": 120,
+        "csv_files": []
+      }
+    ]
+  }
+}
+```
+
+规则：
+
+- 只返回 `finished` session。
+- 传入 `room_id` 时只返回该房间 session。
+- 按 `finished_at` 从新到旧排序。
+
+#### GET /stats/test/download/{file_path}
+
+下载 `data/test_sessions/{file_path}` 对应 CSV。
+
+安全规则：
+
+- `file_path` 必须解析在 `data/test_sessions/` 内。
+- 不存在时返回 `not_found`。
 
 ### 20.6 Dashboard API
 
@@ -2243,7 +2384,17 @@ DASHBOARD_ALLOW_INSECURE_WEBRTC = true
 
 首版 Dashboard 后端代理访问 WebRTC API，Dashboard 页面只请求 `http://localhost:8081/api/*`。这样可以避免浏览器跨端口 HTTPS 自签名证书和 CORS 问题。
 
-#### GET /api/realtime
+当前 Dashboard API 主要代理 WebRTC 服务 API。所有代理都接受：
+
+```text
+origin=https://localhost:8080
+```
+
+#### GET /api/webrtc/members
+
+代理 WebRTC `GET /rooms/members`。
+
+#### GET /api/webrtc/stats
 
 查询参数：
 
@@ -2251,22 +2402,7 @@ DASHBOARD_ALLOW_INSECURE_WEBRTC = true
 room_id=room1
 ```
 
-响应：
-
-```json
-{
-  "ok": true,
-  "data": {
-    "room_id": "room1",
-    "webrtc_service": {
-      "base_url": "https://localhost:8080",
-      "reachable": true,
-      "last_error": null
-    },
-    "latest": []
-  }
-}
-```
+代理 WebRTC `GET /stats`。
 
 WebRTC 服务不可达时：
 
@@ -2274,91 +2410,61 @@ WebRTC 服务不可达时：
 {
   "ok": false,
   "error": {
-    "code": "service_unready",
+    "code": "service_unreachable",
     "message": "WebRTC service is unreachable",
     "details": {
-      "base_url": "https://localhost:8080"
+      "error": "..."
     }
   }
 }
 ```
 
-#### GET /api/history
+#### GET /api/webrtc/stats/history
 
 查询参数透传到 WebRTC `/stats/history`，Dashboard 负责补充服务状态信息。
 
-#### GET /api/peers
+#### GET /api/webrtc/stats/peers
 
 查询参数透传到 WebRTC `/stats/peers`。
 
-#### GET /api/charts
+#### GET /api/webrtc/dashboard/snapshot
 
-查询参数：
+查询参数透传到 WebRTC `/dashboard/snapshot`。
+
+#### POST /api/webrtc/clear_stats
+
+请求体透传到 WebRTC `/clear_stats`。
+
+#### GET /api/webrtc/stats/test/sessions
+
+查询参数透传到 WebRTC `/stats/test/sessions`。
+
+#### GET /api/webrtc/stats/test/download/{file_path}
+
+代理 WebRTC `/stats/test/download/{file_path}`，返回 CSV 内容。
+
+#### Dashboard 本地 CSV 分析
+
+CSV 分析当前在浏览器本地完成，不需要后端上传接口。
+
+输入方式：
+
+- 本地多 CSV 文件选择。
+- 从已完成测试会话列表选择一个 session CSV。
+
+页面输出：
 
 ```text
-room_id=room1
-metric=rtt_ms
-peer_id=client_a
-remote_peer_id=client_b
-```
-
-响应：
-
-```json
-{
-  "ok": true,
-  "data": {
-    "chart_path": "data/charts/room1_client_a_client_b_rtt_ms.png",
-    "metric": "rtt_ms"
-  }
-}
-```
-
-#### POST /api/csv/compare
-
-首版支持两种输入：
-
-```json
-{
-  "csv_paths": [
-    "data/test_sessions/baseline_enabled_60s_20260421_150000.csv",
-    "data/test_sessions/nack_off_60s_20260421_151000.csv"
-  ],
-  "metrics": ["rtt_ms", "packet_loss", "bitrate_kbps", "health_score"]
-}
-```
-
-或 multipart upload 多个 CSV 文件。
-
-响应：
-
-```json
-{
-  "ok": true,
-  "data": {
-    "metrics": ["rtt_ms", "packet_loss"],
-    "series": [
-      {
-        "name": "baseline_enabled_60s",
-        "sample_count": 120,
-        "missing_fields": [],
-        "summary": {
-          "rtt_ms": {
-            "avg": 42.5,
-            "min": 20.0,
-            "max": 120.0
-          }
-        }
-      }
-    ]
-  }
-}
+字段校验结果
+CSV 统计表
+RTT / Loss / Jitter / Bitrate / FPS 最佳值提示
+SVG 趋势图
 ```
 
 规则：
 
-- 字段缺失不阻塞对比，但必须返回 `missing_fields`。
-- 时间轴使用相对时间，从每个 CSV 第一条样本归零。
+- 必要字段缺失时进入 `csv_invalid`，并列出 missing fields。
+- 趋势图按 `sample_index` 横轴绘制；缺失当前 metric 的 CSV 不绘制曲线。
 - 首版不做显著性检验。
 
 ## 21. 浏览器端状态机与信令时序
@@ -2603,18 +2709,30 @@ window.__RTCTrainingTestHooks = {
   getClientId() {},
   getRoomId() {},
   getPeers() {},
-  getPeerConnectionState(remotePeerId) {},
+  getConnectedPeerCount() {},
+  getConnectedPeerIds() {},
   getTimeline() {},
   getLatestStats() {},
-  getSdpSnapshots() {},
-  getIceCandidates() {},
-  getSelectedCandidatePair(remotePeerId) {},
+  getStatsUploadedCount() {},
+  getNackMode() {},
+  setNackMode(mode) {},
+  getBitrateMode() {},
+  setSenderBitrateKbps(value) {},
+  getSenderMaxBitrateBps() {},
+  getAbrMode() {},
+  setAbrMode(mode) {},
+  runAbrDecision(metrics) {},
+  getAbrTargetBitrateBps() {},
+  getAbrLastDecision() {},
   startMedia() {},
   joinRoom(roomId, displayName) {},
   leaveRoom() {},
   startTestSession(config) {},
   finishTestSession() {},
-  injectFault(type, options) {}
+  cancelTestSession() {},
+  applyTestPreset(presetName) {},
+  getTestSessionId() {},
+  getTestSessionStatus() {}
 }
 ```
 
@@ -2669,10 +2787,10 @@ Browser Dashboard Page
 
 Dashboard Server 访问 WebRTC 服务时：
 
-- 使用 `WEBRTC_API_BASE_URL` 配置。
+- 使用 `origin` 查询参数指定 WebRTC 服务，未提供时使用本地默认 WebRTC origin。
 - 开发模式允许跳过本地自签名证书校验。
-- 请求超时默认 2 秒。
-- 失败时返回 `service_unready`，页面显示空状态和错误摘要。
+- 请求超时默认 3 秒。
+- 服务不可达时返回 `service_unreachable`，页面显示空状态和错误摘要。
 
 ### 23.2 Dashboard 空状态
 
@@ -2701,30 +2819,38 @@ field_missing
 
 CSV 对比支持：
 
-1. 选择 `data/test_sessions/` 下已有 CSV。
+1. 通过 Dashboard 选择已完成测试会话 CSV。
 2. 上传多个本地 CSV。
 
 每个 CSV 必须至少包含：
 
 ```text
+sample_index
 timestamp
 room_id
 test_session_id
 peer_id
 remote_peer_id
+rtt_ms
+packet_loss_rate
+jitter_ms
+bitrate_kbps
+fps
+nack_mode
+abr_mode
 ```
 
 推荐包含：
 
 ```text
-rtt_ms
-packet_loss
-jitter_ms
-bitrate_kbps
-frames_per_second
-health_score
 nack_enabled
-abr_mode
+nack_count
+pli_count
+fir_count
+bitrate_mode
+sender_max_bitrate_bps
+abr_target_bitrate_bps
+abr_decision
 ```
 
 ### 23.4 CSV 对比输出
@@ -2732,30 +2858,35 @@ abr_mode
 Dashboard 对每个 CSV 生成：
 
 ```text
-session_name
+file_name
 test_session_id
 room_id
-peer_pairs
+peer_id
+remote_peer_id
 sample_count
-time_range_sec
 missing_fields
-metric_summary
-relative_series
+avg_rtt_ms
+avg_packet_loss_rate
+avg_jitter_ms
+avg_bitrate_kbps
+avg_fps
+metric_series
 ```
 
-`relative_series` 使用相对时间轴：
+`metric_series` 当前使用 `sample_index` 作为横轴：
 
 ```text
-relative_time_sec = sample.timestamp - first_sample.timestamp
+x = sample_index
+y = selected metric
 ```
 
 对比图规则：
 
-- 默认叠加 RTT、packet loss、bitrate、health。
-- 用户可以开关单个 metric。
+- 默认指标为 RTT。
+- 用户可以切换 RTT、Loss、Jitter、Bitrate、FPS。
 - 不同 CSV 使用不同颜色。
 - 缺失字段的曲线不绘制，但表格显示缺失。
-- 多 peer pair 时，首版允许用户选择一个 pair；增强版再支持同时展示多 pair。
+- 当前测试会话 CSV 已按 `remote_peer_id` 分文件，因此一个 CSV 只对应一个 peer pair 方向。
 
 ## 24. UI 状态、空状态和错误状态规范
 
@@ -2887,10 +3018,12 @@ Dashboard 顶部必须显示：
 
 CSV 对比 UI：
 
-- 支持多选 CSV。
-- 显示每个 CSV 的 session 名称、样本数、缺失字段。
-- 指标选择使用 checkbox。
-- 默认按相对时间叠加。
+- 支持本地多 CSV 文件选择。
+- 支持从已完成测试会话列表选择 CSV。
+- 显示每个 CSV 的文件名、样本数、room、session、peer pair、平均值和缺失字段。
+- 指标选择使用下拉框，当前支持 RTT、Loss、Jitter、Bitrate、FPS。
+- 趋势图使用 SVG 折线图，按 `sample_index` 绘制。
+- CSV 字段缺失时显示 `csv_invalid` 和 missing fields。
 
 ### 24.6 无障碍和可读性
 

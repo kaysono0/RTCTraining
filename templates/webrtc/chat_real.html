@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>RTCTraining</title>
-    <link rel="stylesheet" href="/static/webrtc/chat_real.css?v=20260508-control-groups-mobile-media-session-details">
+    <link rel="stylesheet" href="/static/webrtc/chat_real.css?v=20260508-sdp-parsed-timeline-toggle">
   </head>
   <body>
     <main class="app-shell">
@@ -16,17 +16,17 @@
         <div class="room-controls">
           <div class="control-group identity-control-group">
             <label>
-              <span>Room</span>
+              <span>Room <small class="param-effect-badge param-effect-reconnect">重连生效</small></span>
               <input id="roomIdInput" value="room1" aria-label="Room ID">
             </label>
             <label>
-              <span>Name</span>
+              <span>Name <small class="param-effect-badge param-effect-reconnect">重连生效</small></span>
               <input id="displayNameInput" value="Learner" aria-label="Display name">
             </label>
           </div>
           <div class="control-group nack-control-group">
             <label>
-              <span>NACK</span>
+              <span>NACK <small class="param-effect-badge param-effect-reconnect">重连生效</small></span>
               <select id="nackModeSelect" aria-label="NACK mode">
                 <option value="enabled" selected>NACK on</option>
                 <option value="disabled">NACK off</option>
@@ -36,7 +36,7 @@
           </div>
           <div class="control-group bitrate-control-group">
             <label>
-              <span>Bitrate kbps</span>
+              <span>Bitrate kbps <small class="param-effect-badge param-effect-immediate">即时生效</small></span>
               <input id="senderBitrateInput" type="number" min="0" step="1" inputmode="numeric" placeholder="auto" aria-label="Sender bitrate kbps">
             </label>
             <button id="applyBitrateButton" type="button">Apply</button>
@@ -44,30 +44,30 @@
           </div>
           <div class="control-group abr-control-group">
             <label>
-              <span>ABR</span>
+              <span>ABR <small class="param-effect-badge param-effect-immediate">即时生效</small></span>
               <select id="abrModeSelect" aria-label="ABR mode">
                 <option value="off" selected>ABR off</option>
                 <option value="on">ABR on</option>
               </select>
             </label>
             <label>
-              <span>ABR min</span>
+              <span>ABR min <small class="param-effect-badge param-effect-immediate">即时生效</small></span>
               <input id="abrMinBitrateInput" type="number" min="1" step="1" value="300" aria-label="ABR min bitrate kbps">
             </label>
             <label>
-              <span>ABR max</span>
+              <span>ABR max <small class="param-effect-badge param-effect-immediate">即时生效</small></span>
               <input id="abrMaxBitrateInput" type="number" min="1" step="1" value="1500" aria-label="ABR max bitrate kbps">
             </label>
             <label>
-              <span>ABR step</span>
+              <span>ABR step <small class="param-effect-badge param-effect-immediate">即时生效</small></span>
               <input id="abrStepKbpsInput" type="number" min="1" step="1" value="150" aria-label="ABR step kbps">
             </label>
             <label>
-              <span>Loss %</span>
+              <span>Loss % <small class="param-effect-badge param-effect-immediate">即时生效</small></span>
               <input id="abrLossThresholdInput" type="number" min="0" step="0.1" value="5" aria-label="ABR loss threshold percent">
             </label>
             <label>
-              <span>RTT ms</span>
+              <span>RTT ms <small class="param-effect-badge param-effect-immediate">即时生效</small></span>
               <input id="abrRttThresholdInput" type="number" min="1" step="1" value="300" aria-label="ABR RTT threshold ms">
             </label>
             <span id="abrModeState">abr_off</span>
@@ -98,11 +98,11 @@
           </label>
           <label>
             <span>Weak network</span>
-            <input id="testWeakNetworkInput" value="none" aria-label="Weak network condition">
+            <input id="testWeakNetworkInput" value="none" placeholder="e.g. none, loss_5%, delay_100ms" aria-label="Weak network condition" title="记录测试时的弱网模拟条件，如 none / loss_5% / delay_100ms，便于后续对比分析">
           </label>
           <label>
             <span>Note</span>
-            <input id="testSessionNoteInput" placeholder="test note" aria-label="Test session note">
+            <input id="testSessionNoteInput" placeholder="e.g. build version, environment, observations" aria-label="Test session note" title="测试备注，如构建版本、环境信息、观察到的现象等">
           </label>
           <button id="startTestSessionButton" type="button">Start Session</button>
           <button id="finishTestSessionButton" type="button">Finish</button>
@@ -128,11 +128,11 @@
         <ol id="timeline"></ol>
       </section>
     </main>
-    <script src="/static/webrtc/chat_real_shared.js?v=20260508-mobile-media-request-timeline"></script>
+    <script src="/static/webrtc/chat_real_shared.js?v=20260508-mobile-media-sdp-parsed-view"></script>
     <script src="/static/webrtc/chat_real_nack.js?v=20260507-nack-mode-manual-bitrate-mobile-media"></script>
     <script src="/static/webrtc/chat_real_bitrate.js?v=20260508-nack-mode-manual-bitrate-auto-abr-mobile-media"></script>
     <script src="/static/webrtc/chat_real_test_session.js?v=20260508-test-session-presets-details"></script>
-    <script src="/static/webrtc/chat_real_session.js?v=20260508-mobile-media-request-timeline"></script>
+    <script src="/static/webrtc/chat_real_session.js?v=20260508-mobile-media-sdp-parsed-view"></script>
     <script src="/static/webrtc/chat_real_stats.js?v=20260508-nack-mode-manual-bitrate-auto-abr-mobile-media"></script>
     <script src="/static/webrtc/chat_real_bootstrap.js?v=20260508-nack-mode-manual-bitrate-mobile-media-session-presets"></script>
     <script>
