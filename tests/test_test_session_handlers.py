@@ -171,3 +171,43 @@ async def test_test_session_finish_writes_isolated_csv_files(csv_client):
     assert ",manual,600000,on,450000,increase" in csv_body
     assert ",peer-c," not in csv_body
     assert ",room2," not in csv_body
+
+
+@pytest.mark.asyncio
+async def test_test_session_list_returns_finished_sessions_with_csv_files(csv_client):
+    started_response = await csv_client.post(
+        "/stats/test/start",
+        json={
+            "room_id": "room1",
+            "peer_id": "peer-a",
+            "preset": "abr_simple",
+            "metadata": {"note": "compare"},
+            "weak_network": {"profile": "loss_5"},
+        },
+    )
+    session = (await started_response.json())["data"]["session"]
+    await csv_client.post(
+        "/stats",
+        json={
+            "room_id": "room1",
+            "peer_id": "peer-a",
+            "remote_peer_id": "peer-b",
+            "test_session_id": session["test_session_id"],
+            "metrics": {"rtt_ms": 10.0, "nack_mode": "enabled", "abr_mode": "on"},
+        },
+    )
+    await csv_client.post(
+        "/stats/test/finish",
+        json={"test_session_id": session["test_session_id"]},
+    )
+
+    response = await csv_client.get("/stats/test/sessions?room_id=room1")
+    payload = await response.json()
+
+    assert response.status == 200
+    assert payload["ok"] is True
+    assert payload["data"]["sessions"][0]["test_session_id"] == session["test_session_id"]
+    assert payload["data"]["sessions"][0]["preset"] == "abr_simple"
+    assert payload["data"]["sessions"][0]["weak_network"] == {"profile": "loss_5"}
+    assert payload["data"]["sessions"][0]["sample_count"] == 1
+    assert payload["data"]["sessions"][0]["csv_files"][0]["remote_peer_id"] == "peer-b"

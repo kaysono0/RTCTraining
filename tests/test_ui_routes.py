@@ -218,6 +218,8 @@ async def test_dashboard_static_assets_are_versioned_and_loadable(dashboard_clie
     assert "clearLiveStats" in js_body
     assert "analyzeCsvTexts" in js_body
     assert "setCsvMetric" in js_body
+    assert "loadTestSessionCsvList" in js_body
+    assert "loadSelectedSessionCsv" in js_body
     assert "REQUIRED_CSV_FIELDS" in js_body
     assert '"NACK Mode"' in js_body
 
@@ -276,6 +278,19 @@ async def test_dashboard_stats_proxy_routes_exist(dashboard_client):
     assert peers.status != 404
     assert snapshot.status != 404
     assert clear_stats.status != 404
+
+
+@pytest.mark.asyncio
+async def test_dashboard_test_session_proxy_routes_exist(dashboard_client):
+    sessions = await dashboard_client.get(
+        "/api/webrtc/stats/test/sessions?origin=bad-origin&room_id=room1"
+    )
+    csv_file = await dashboard_client.get(
+        "/api/webrtc/stats/test/download/room1/session1/peer-a/peer-b.csv?origin=bad-origin"
+    )
+
+    assert sessions.status != 404
+    assert csv_file.status != 404
 
 
 @pytest.mark.asyncio

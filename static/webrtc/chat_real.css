@@ -188,6 +188,15 @@ body {
   overflow-wrap: anywhere;
 }
 
+.test-session-summary,
+.test-session-details {
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.4;
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+}
+
 .test-session-downloads {
   display: flex;
   flex-wrap: wrap;

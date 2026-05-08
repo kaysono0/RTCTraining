@@ -43,3 +43,24 @@ def test_get_running_session_is_room_and_peer_scoped():
     store.start({"room_id": "room2", "peer_id": "peer-a", "preset": "manual"})
 
     assert store.running(room_id="room1", peer_id="peer-a") == expected
+
+
+def test_list_finished_sessions_is_room_scoped_and_newest_first():
+    now_values = iter([1000.0, 1001.0, 1002.0, 1003.0, 1004.0])
+    store = TestSessionStore(
+        now=lambda: next(now_values),
+        id_factory=iter(["s1", "s2", "s3"]).__next__,
+    )
+    first = store.start({"room_id": "room1", "peer_id": "peer-a", "preset": "nack_on"})
+    second = store.start({"room_id": "room1", "peer_id": "peer-a", "preset": "abr_simple"})
+    other_room = store.start({"room_id": "room2", "peer_id": "peer-a", "preset": "nack_on"})
+    store.finish(first["test_session_id"], sample_count=2, csv_files=[{"download_url": "/a.csv"}])
+    store.finish(second["test_session_id"], sample_count=3, csv_files=[{"download_url": "/b.csv"}])
+
+    sessions = store.list_finished(room_id="room1")
+
+    assert [session["test_session_id"] for session in sessions] == ["s2", "s1"]
+    assert sessions[0]["preset"] == "abr_simple"
+    assert sessions[0]["sample_count"] == 3
+    assert sessions[0]["csv_files"] == [{"download_url": "/b.csv"}]
+    assert other_room["test_session_id"] not in [session["test_session_id"] for session in sessions]

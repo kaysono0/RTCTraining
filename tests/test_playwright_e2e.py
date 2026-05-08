@@ -442,6 +442,63 @@ def test_webrtc_page_runs_test_session_lifecycle(browser_context, webrtc_https_s
     expect(page.locator("#testSessionDownloads a")).to_have_count(1)
 
 
+def test_webrtc_test_session_applies_experiment_preset(browser_context, webrtc_https_server):
+    page = browser_context.new_page()
+
+    page.goto(webrtc_https_server)
+    page.select_option("#testPresetSelect", "abr_simple")
+    result = page.evaluate("window.__RTCTrainingTestHooks.applyTestPreset('abr_simple')")
+
+    assert result["preset"] == "abr_simple"
+    assert result["nack_mode"] == "enabled"
+    assert result["abr_mode"] == "on"
+    assert result["bitrate_mode"] == "abr"
+    expect(page.locator("#nackModeState")).to_have_text("nack_enabled")
+    expect(page.locator("#abrModeState")).to_contain_text("abr_on")
+    expect(page.locator("#testSessionPresetSummary")).to_contain_text("abr_simple")
+
+
+def test_webrtc_test_session_renders_metadata_and_download_groups(browser_context, webrtc_https_server):
+    page = browser_context.new_page()
+
+    page.goto(webrtc_https_server)
+    result = page.evaluate(
+        """
+        async () => {
+          const session = await window.__RTCTrainingTestHooks.startTestSession({
+            preset: "nack_on",
+            metadata: { note: "baseline" },
+            weak_network: { profile: "loss_5" }
+          });
+          window.RTCTrainingShared.state.testSession = {
+            ...session,
+            status: "finished",
+            finished_at: session.started_at + 3,
+            sample_count: 4,
+            csv_files: [
+              {
+                room_id: "room1",
+                test_session_id: session.test_session_id,
+                peer_id: window.__RTCTrainingTestHooks.getClientId(),
+                remote_peer_id: "peer-b",
+                download_url: "/stats/test/download/room1/s1/peer-a/peer-b.csv"
+              }
+            ]
+          };
+          window.RTCTrainingShared.state.testSessionStatus = "finished";
+          window.RTCTrainingTestSession.renderTestSession();
+          return session.test_session_id;
+        }
+        """
+    )
+
+    expect(page.locator("#testSessionDetails")).to_contain_text(result)
+    expect(page.locator("#testSessionDetails")).to_contain_text("preset: nack_on")
+    expect(page.locator("#testSessionDetails")).to_contain_text("weak: loss_5")
+    expect(page.locator("#testSessionDetails")).to_contain_text("samples: 4")
+    expect(page.locator("#testSessionDownloads")).to_contain_text("peer-b")
+
+
 def test_webrtc_hooks_survive_legacy_html_missing_nack_controls(
     browser_context,
     webrtc_https_server,
@@ -941,6 +998,101 @@ def test_dashboard_csv_metric_selection_updates_trend_comparison(
     expect(page.locator("#csvMetricSelect")).to_have_value("bitrate_kbps")
     expect(page.locator("#csvTrendComparison")).to_contain_text("Bitrate best: fast.csv")
     expect(page.locator("#csvTrendComparison")).not_to_contain_text("RTT best")
+
+
+def test_dashboard_renders_csv_trend_chart(
+    browser_context,
+    dashboard_server,
+    webrtc_https_server,
+):
+    page = browser_context.new_page()
+
+    page.goto(f"{dashboard_server}/?webrtc_origin={webrtc_https_server}")
+    page.evaluate(
+        """
+        window.__RTCTrainingDashboardTestHooks.analyzeCsvTexts([
+          {
+            name: "nack_on.csv",
+            text: [
+              "sample_index,timestamp,room_id,test_session_id,peer_id,remote_peer_id,rtt_ms,packet_loss_rate,jitter_ms,bitrate_kbps,fps,nack_mode,abr_mode",
+              "1,1000,room1,s1,peer-a,peer-b,20,1,5,900,30,enabled,off",
+              "2,1001,room1,s1,peer-a,peer-b,35,3,7,700,28,enabled,off"
+            ].join("\\n")
+          },
+          {
+            name: "abr_on.csv",
+            text: [
+              "sample_index,timestamp,room_id,test_session_id,peer_id,remote_peer_id,rtt_ms,packet_loss_rate,jitter_ms,bitrate_kbps,fps,nack_mode,abr_mode",
+              "1,1000,room1,s2,peer-a,peer-b,50,4,8,800,24,enabled,on",
+              "2,1001,room1,s2,peer-a,peer-b,28,2,6,1100,30,enabled,on"
+            ].join("\\n")
+          }
+        ])
+        """
+    )
+
+    expect(page.locator("#csvTrendChart svg")).to_have_count(1)
+    expect(page.locator("#csvTrendChart polyline")).to_have_count(2)
+    expect(page.locator("#csvTrendChart")).to_contain_text("nack_on.csv")
+    expect(page.locator("#csvTrendChart")).to_contain_text("abr_on.csv")
+
+
+def test_dashboard_loads_finished_session_csv_files(
+    browser_context,
+    dashboard_server,
+    webrtc_https_server,
+):
+    page = browser_context.new_page()
+    page.route(
+        re.compile(r".*/api/webrtc/stats/test/sessions\\?.*"),
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            json={
+                "ok": True,
+                "data": {
+                    "sessions": [
+                        {
+                            "test_session_id": "s1",
+                            "room_id": "room1",
+                            "peer_id": "peer-a",
+                            "preset": "abr_simple",
+                            "weak_network": {"profile": "loss_5"},
+                            "sample_count": 2,
+                            "csv_files": [
+                                {
+                                    "remote_peer_id": "peer-b",
+                                    "download_url": "/stats/test/download/room1/s1/peer-a/peer-b.csv",
+                                }
+                            ],
+                        }
+                    ]
+                },
+            },
+        ),
+    )
+    page.route(
+        re.compile(r".*/api/webrtc/stats/test/download/.*"),
+        lambda route: route.fulfill(
+            status=200,
+            content_type="text/csv",
+            body="\n".join([
+                "sample_index,timestamp,room_id,test_session_id,peer_id,remote_peer_id,rtt_ms,packet_loss_rate,jitter_ms,bitrate_kbps,fps,nack_mode,abr_mode",
+                "1,1000,room1,s1,peer-a,peer-b,25,2,5,900,28,enabled,on",
+            ]),
+        ),
+    )
+
+    page.goto(f"{dashboard_server}/?webrtc_origin={webrtc_https_server}&room_id=room1")
+    result = page.evaluate("window.__RTCTrainingDashboardTestHooks.loadTestSessionCsvList()")
+
+    assert result["sessions"][0]["test_session_id"] == "s1"
+    expect(page.locator("#testSessionCsvSelect")).to_contain_text("s1")
+    loaded = page.evaluate("window.__RTCTrainingDashboardTestHooks.loadSelectedSessionCsv()")
+
+    assert loaded["ok"] is True
+    expect(page.locator("#csvState")).to_have_text("csv_ready")
+    expect(page.locator("#csvValidationPanel")).to_contain_text("s1-peer-b.csv: ok")
 
 
 def test_two_webrtc_pages_connect_and_render_remote_video(

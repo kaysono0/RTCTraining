@@ -61,6 +61,11 @@ class TestSessionHandlers:
         canceled = self.test_session_store.cancel(test_session_id)
         return web.json_response(success_payload({"session": canceled}))
 
+    async def list_sessions(self, request):
+        room_id = request.query.get("room_id") or None
+        sessions = self.test_session_store.list_finished(room_id=room_id)
+        return web.json_response(success_payload({"sessions": sessions}))
+
     async def download_csv(self, request):
         relative_path = request.match_info["file_path"]
         target = (self.output_dir / relative_path).resolve()

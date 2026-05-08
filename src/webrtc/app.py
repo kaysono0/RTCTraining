@@ -54,5 +54,6 @@ def create_webrtc_app(
     app.router.add_post("/stats/test/start", test_session_handlers.start)
     app.router.add_post("/stats/test/finish", test_session_handlers.finish)
     app.router.add_post("/stats/test/cancel", test_session_handlers.cancel)
+    app.router.add_get("/stats/test/sessions", test_session_handlers.list_sessions)
     app.router.add_get("/stats/test/download/{file_path:.+}", test_session_handlers.download_csv)
     return app

@@ -12,7 +12,8 @@
   };
   const csvAnalysisState = {
     result: null,
-    metric: "rtt_ms"
+    metric: "rtt_ms",
+    sessions: []
   };
   const REQUIRED_CSV_FIELDS = [
     "sample_index",
@@ -267,7 +268,8 @@
       avg_packet_loss_rate: average(parsed.rows, "packet_loss_rate"),
       avg_jitter_ms: average(parsed.rows, "jitter_ms"),
       avg_bitrate_kbps: average(parsed.rows, "bitrate_kbps"),
-      avg_fps: average(parsed.rows, "fps")
+      avg_fps: average(parsed.rows, "fps"),
+      rows: parsed.rows
     };
   }
 
@@ -326,6 +328,7 @@
     if (trend) {
       renderCsvTrend(result);
     }
+    renderCsvTrendChart(result);
   }
 
   function renderCsvTrend(result) {
@@ -341,6 +344,82 @@
       ? `${metricConfig.label} best: ${best.name} (${formatMetric(best[metricConfig.avgField], metricConfig.suffix)})`
       : `${metricConfig.label} best: -`;
     trend.appendChild(item);
+  }
+
+  function csvSeries(file, metricName) {
+    return (file.rows || [])
+      .map((row, index) => {
+        return {
+          x: numberFromRow(row, "sample_index") || index + 1,
+          y: numberFromRow(row, metricName)
+        };
+      })
+      .filter((point) => point.y !== null);
+  }
+
+  function renderCsvTrendChart(result) {
+    const chart = document.getElementById("csvTrendChart");
+    if (!chart) {
+      return;
+    }
+    chart.innerHTML = "";
+    const metricName = csvAnalysisState.metric;
+    const files = (result.files || []).filter((file) => file.ok);
+    const series = files.map((file) => ({ file, points: csvSeries(file, metricName) }))
+      .filter((item) => item.points.length > 0);
+    if (!series.length) {
+      chart.textContent = "trend_waiting";
+      return;
+    }
+
+    const width = 720;
+    const height = 220;
+    const padding = 28;
+    const allPoints = series.flatMap((item) => item.points);
+    const minX = Math.min(...allPoints.map((point) => point.x));
+    const maxX = Math.max(...allPoints.map((point) => point.x));
+    const minY = Math.min(...allPoints.map((point) => point.y));
+    const maxY = Math.max(...allPoints.map((point) => point.y));
+    const xRange = maxX - minX || 1;
+    const yRange = maxY - minY || 1;
+    const colors = ["#23576b", "#b45309", "#15803d", "#7c3aed", "#be123c"];
+
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    svg.setAttribute("role", "img");
+    svg.setAttribute("aria-label", `${CSV_METRICS[metricName].label} trend`);
+
+    const axis = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    axis.setAttribute("d", `M ${padding} ${padding} L ${padding} ${height - padding} L ${width - padding} ${height - padding}`);
+    axis.setAttribute("fill", "none");
+    axis.setAttribute("stroke", "#9aa8af");
+    axis.setAttribute("stroke-width", "1");
+    svg.appendChild(axis);
+
+    series.forEach((item, index) => {
+      const points = item.points.map((point) => {
+        const x = padding + ((point.x - minX) / xRange) * (width - padding * 2);
+        const y = height - padding - ((point.y - minY) / yRange) * (height - padding * 2);
+        return `${Number(x.toFixed(1))},${Number(y.toFixed(1))}`;
+      }).join(" ");
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      line.setAttribute("points", points);
+      line.setAttribute("fill", "none");
+      line.setAttribute("stroke", colors[index % colors.length]);
+      line.setAttribute("stroke-width", "2.5");
+      line.setAttribute("data-file", item.file.name);
+      svg.appendChild(line);
+    });
+
+    const legend = document.createElement("div");
+    legend.className = "csv-trend-legend";
+    series.forEach((item, index) => {
+      const label = document.createElement("span");
+      label.style.setProperty("--series-color", colors[index % colors.length]);
+      label.textContent = item.file.name;
+      legend.appendChild(label);
+    });
+    chart.append(svg, legend);
   }
 
   function analyzeCsvTexts(entries) {
@@ -363,8 +442,78 @@
     }
     if (csvAnalysisState.result) {
       renderCsvTrend(csvAnalysisState.result);
+      renderCsvTrendChart(csvAnalysisState.result);
     }
     return csvAnalysisState.metric;
+  }
+
+  function sessionCsvOptionValue(session, file) {
+    return JSON.stringify({
+      test_session_id: session.test_session_id,
+      remote_peer_id: file.remote_peer_id,
+      download_url: file.download_url
+    });
+  }
+
+  function renderTestSessionCsvList(sessions) {
+    const select = document.getElementById("testSessionCsvSelect");
+    const panel = document.getElementById("testSessionCsvPanel");
+    if (select) {
+      select.innerHTML = "";
+      for (const session of sessions || []) {
+        for (const file of session.csv_files || []) {
+          const option = document.createElement("option");
+          option.value = sessionCsvOptionValue(session, file);
+          option.textContent = [
+            session.test_session_id,
+            session.preset,
+            file.remote_peer_id,
+            `samples=${session.sample_count}`
+          ].filter(Boolean).join(" | ");
+          select.appendChild(option);
+        }
+      }
+    }
+    if (panel) {
+      panel.textContent = sessions && sessions.length
+        ? `sessions_loaded: ${sessions.length}`
+        : "sessions_empty";
+    }
+  }
+
+  async function loadTestSessionCsvList() {
+    const origin = document.getElementById("webrtcOriginInput").value.trim();
+    const roomId = document.getElementById("statsRoomInput").value.trim() || "room1";
+    const response = await fetch(`/api/webrtc/stats/test/sessions?origin=${encodeURIComponent(origin)}&room_id=${encodeURIComponent(roomId)}`);
+    const payload = await readJsonResponse(response);
+    if (!payload.ok) {
+      setText("testSessionCsvPanel", payload.error.code);
+      return payload;
+    }
+    csvAnalysisState.sessions = payload.data.sessions || [];
+    renderTestSessionCsvList(csvAnalysisState.sessions);
+    return { sessions: csvAnalysisState.sessions };
+  }
+
+  function dashboardCsvDownloadUrl(downloadUrl, origin) {
+    const path = new URL(downloadUrl, origin).pathname;
+    const prefix = "/stats/test/download/";
+    const filePath = path.startsWith(prefix) ? path.slice(prefix.length) : path.replace(/^\/+/, "");
+    return `/api/webrtc/stats/test/download/${filePath}?origin=${encodeURIComponent(origin)}`;
+  }
+
+  async function loadSelectedSessionCsv() {
+    const select = document.getElementById("testSessionCsvSelect");
+    if (!select || !select.value) {
+      setText("testSessionCsvPanel", "session_csv_waiting");
+      return { ok: false, files: [] };
+    }
+    const origin = document.getElementById("webrtcOriginInput").value.trim();
+    const selected = JSON.parse(select.value);
+    const response = await fetch(dashboardCsvDownloadUrl(selected.download_url, origin));
+    const text = await response.text();
+    const name = `${selected.test_session_id}-${selected.remote_peer_id}.csv`;
+    return analyzeCsvTexts([{ name, text }]);
   }
 
   async function analyzeSelectedCsvFiles() {
@@ -761,6 +910,17 @@
         setText("csvValidationPanel", error.message);
       });
     });
+    addClickListener("loadSessionCsvListButton", () => {
+      loadTestSessionCsvList().catch((error) => {
+        setText("testSessionCsvPanel", error.message);
+      });
+    });
+    addClickListener("loadSelectedSessionCsvButton", () => {
+      loadSelectedSessionCsv().catch((error) => {
+        setText("csvState", "csv_error");
+        setText("csvValidationPanel", error.message);
+      });
+    });
     const csvMetricSelect = document.getElementById("csvMetricSelect");
     if (csvMetricSelect) {
       csvMetricSelect.addEventListener("change", (event) => {
@@ -775,6 +935,8 @@
       analyzeCsvTexts,
       analyzeSelectedCsvFiles,
       setCsvMetric,
+      loadTestSessionCsvList,
+      loadSelectedSessionCsv,
       getServiceState() {
         return document.getElementById("serviceState").textContent;
       },

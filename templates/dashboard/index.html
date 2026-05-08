@@ -105,7 +105,14 @@
           </select>
           <button id="csvAnalyzeButton" type="button">Analyze CSV</button>
         </div>
+        <div class="csv-session-controls">
+          <button id="loadSessionCsvListButton" type="button">Load Sessions</button>
+          <select id="testSessionCsvSelect" aria-label="Finished test session CSV files"></select>
+          <button id="loadSelectedSessionCsvButton" type="button">Load Session CSV</button>
+        </div>
+        <div id="testSessionCsvPanel" class="csv-validation-panel"></div>
         <div id="csvValidationPanel" class="csv-validation-panel"></div>
+        <div id="csvTrendChart" class="csv-trend-chart"></div>
         <div class="dashboard-table-scroll">
           <table id="csvComparisonTable">
             <thead>
@@ -128,7 +135,7 @@
         <div id="csvTrendComparison" class="csv-trend-comparison"></div>
       </section>
     </main>
-    <script src="/static/dashboard/dashboard.js?v=20260507-mesh-topology-nack-mode-workstation-layout-csv-analysis"></script>
+    <script src="/static/dashboard/dashboard.js?v=20260508-mesh-topology-nack-mode-workstation-layout-csv-analysis-session-trends"></script>
     <script>
       (function () {
         window.__RTCTrainingDashboardInlineBootstrap = true;

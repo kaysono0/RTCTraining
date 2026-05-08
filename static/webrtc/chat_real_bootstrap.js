@@ -87,6 +87,18 @@ function bootstrapRTCTraining() {
         });
       });
     });
+
+    const presetSelect = document.getElementById("testPresetSelect");
+    if (presetSelect && testSession.applyTestPreset) {
+      presetSelect.addEventListener("change", (event) => {
+        testSession.applyTestPreset(event.target.value).catch((error) => {
+          shared.addTimelineEvent("test_preset_apply_failed", {
+            category: "error",
+            summary: error.message
+          });
+        });
+      });
+    }
   }
 
   addClickListener("startMediaButton", () => {
@@ -201,6 +213,9 @@ function bootstrapRTCTraining() {
     },
     getTestSessionStatus() {
       return shared.state.testSessionStatus;
+    },
+    applyTestPreset(presetName) {
+      return testSession.applyTestPreset(presetName);
     },
     startMedia() {
       return session.startMedia();

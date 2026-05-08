@@ -46,6 +46,16 @@ class TestSessionStore:
         latest = max(candidates, key=lambda session: session["started_at"])
         return dict(latest)
 
+    def list_finished(self, *, room_id=None):
+        sessions = [
+            session
+            for session in self._sessions.values()
+            if session["status"] == "finished"
+            and (not room_id or session["room_id"] == room_id)
+        ]
+        sessions.sort(key=lambda session: session["finished_at"] or session["started_at"], reverse=True)
+        return [dict(session) for session in sessions]
+
     def finish(self, test_session_id, sample_count=0, csv_files=None):
         session = self._require_session(test_session_id)
         session["status"] = "finished"

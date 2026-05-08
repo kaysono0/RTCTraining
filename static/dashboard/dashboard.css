@@ -157,6 +157,13 @@ select {
   margin-bottom: 12px;
 }
 
+.csv-session-controls {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
 .csv-validation-panel,
 .csv-trend-comparison {
   display: grid;
@@ -164,6 +171,39 @@ select {
   margin: 10px 0;
   color: #53636b;
   font-size: 13px;
+}
+
+.csv-trend-chart {
+  min-height: 180px;
+  margin: 12px 0;
+}
+
+.csv-trend-chart svg {
+  display: block;
+  width: 100%;
+  min-height: 180px;
+  border: 1px solid #d3dee3;
+  border-radius: 8px;
+  background: #fbfdfe;
+}
+
+.csv-trend-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 8px;
+  color: #53636b;
+  font-size: 13px;
+}
+
+.csv-trend-legend span::before {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--series-color);
+  content: "";
 }
 
 .status-panel {
@@ -289,6 +329,10 @@ select {
   }
 
   .csv-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .csv-session-controls {
     grid-template-columns: 1fr;
   }
 

@@ -43,6 +43,15 @@ async def webrtc_clear_stats_proxy(request):
     return await _webrtc_proxy_json(request, "/clear_stats", method="POST")
 
 
+async def webrtc_test_sessions_proxy(request):
+    return await webrtc_proxy_json(request, "/stats/test/sessions")
+
+
+async def webrtc_test_session_download_proxy(request):
+    file_path = request.match_info["file_path"]
+    return await _webrtc_proxy_file(request, f"/stats/test/download/{file_path}")
+
+
 async def webrtc_proxy_json(request, upstream_path):
     return await _webrtc_proxy_json(request, upstream_path, method="GET")
 
@@ -102,6 +111,36 @@ async def _webrtc_proxy_json(request, upstream_path, method):
     return web.json_response(success_payload(data))
 
 
+async def _webrtc_proxy_file(request, upstream_path):
+    origin = request.query.get("origin", Settings().local_webrtc_origin)
+    parsed = urlparse(origin)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return web.json_response(
+            error_payload("bad_request", "origin must be an http or https URL", {"origin": origin}),
+            status=400,
+        )
+
+    url = f"{origin.rstrip('/')}{upstream_path}"
+    connector = TCPConnector(ssl=False)
+    timeout = ClientTimeout(total=3)
+    try:
+        async with ClientSession(connector=connector, timeout=timeout) as session:
+            async with session.get(url) as response:
+                body = await response.read()
+                if response.status >= 400:
+                    return web.Response(status=response.status, body=body)
+                return web.Response(
+                    body=body,
+                    content_type=response.headers.get("Content-Type", "text/csv").split(";")[0],
+                    headers={"Cache-Control": "no-store"},
+                )
+    except (ClientError, TimeoutError, OSError) as exc:
+        return web.json_response(
+            error_payload("service_unreachable", "WebRTC service is unreachable", {"error": str(exc)}),
+            status=502,
+        )
+
+
 async def _read_upstream_json(response):
     try:
         return await response.json()
@@ -119,6 +158,8 @@ def create_dashboard_app():
     app.router.add_get("/api/webrtc/stats/peers", webrtc_stats_peers_proxy)
     app.router.add_get("/api/webrtc/dashboard/snapshot", webrtc_dashboard_snapshot_proxy)
     app.router.add_post("/api/webrtc/clear_stats", webrtc_clear_stats_proxy)
+    app.router.add_get("/api/webrtc/stats/test/sessions", webrtc_test_sessions_proxy)
+    app.router.add_get("/api/webrtc/stats/test/download/{file_path:.+}", webrtc_test_session_download_proxy)
     app.router.add_static(
         "/static/dashboard/",
         PROJECT_ROOT / "static" / "dashboard",

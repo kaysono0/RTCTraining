@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>RTCTraining</title>
-    <link rel="stylesheet" href="/static/webrtc/chat_real.css?v=20260507-control-groups-mobile-media">
+    <link rel="stylesheet" href="/static/webrtc/chat_real.css?v=20260508-control-groups-mobile-media-session-details">
   </head>
   <body>
     <main class="app-shell">
@@ -87,8 +87,13 @@
               <option value="manual" selected>manual</option>
               <option value="nack_on">nack_on</option>
               <option value="nack_off">nack_off</option>
-              <option value="low_bitrate">low_bitrate</option>
+              <option value="bitrate_300">bitrate_300</option>
+              <option value="bitrate_800">bitrate_800</option>
+              <option value="nack_on_abr_off">nack_on_abr_off</option>
+              <option value="nack_off_abr_off">nack_off_abr_off</option>
               <option value="abr_simple">abr_simple</option>
+              <option value="nack_on_abr_on">nack_on_abr_on</option>
+              <option value="nack_off_abr_on">nack_off_abr_on</option>
             </select>
           </label>
           <label>
@@ -104,6 +109,8 @@
           <button id="cancelTestSessionButton" type="button">Cancel</button>
           <span id="testSessionState">test_session_idle</span>
         </div>
+        <div id="testSessionPresetSummary" class="test-session-summary">preset: manual</div>
+        <div id="testSessionDetails" class="test-session-details"></div>
         <div id="testSessionDownloads" class="test-session-downloads" aria-label="Test session downloads"></div>
       </section>
       <section class="video-grid">
@@ -124,10 +131,10 @@
     <script src="/static/webrtc/chat_real_shared.js?v=20260507-nack-mode-manual-bitrate-mobile-media"></script>
     <script src="/static/webrtc/chat_real_nack.js?v=20260507-nack-mode-manual-bitrate-mobile-media"></script>
     <script src="/static/webrtc/chat_real_bitrate.js?v=20260508-nack-mode-manual-bitrate-auto-abr-mobile-media"></script>
-    <script src="/static/webrtc/chat_real_test_session.js?v=20260507-test-session"></script>
+    <script src="/static/webrtc/chat_real_test_session.js?v=20260508-test-session-presets-details"></script>
     <script src="/static/webrtc/chat_real_session.js?v=20260507-nack-mode-manual-bitrate-mobile-media"></script>
     <script src="/static/webrtc/chat_real_stats.js?v=20260508-nack-mode-manual-bitrate-auto-abr-mobile-media"></script>
-    <script src="/static/webrtc/chat_real_bootstrap.js?v=20260507-nack-mode-manual-bitrate-mobile-media"></script>
+    <script src="/static/webrtc/chat_real_bootstrap.js?v=20260508-nack-mode-manual-bitrate-mobile-media-session-presets"></script>
     <script>
       window.__RTCTrainingTestHooks = window.__RTCTrainingTestHooks || {};
     </script>
