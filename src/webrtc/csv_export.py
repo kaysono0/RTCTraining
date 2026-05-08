@@ -39,6 +39,11 @@ CSV_FIELDS = [
     "pli_count",
     "fir_count",
     "quality_limitation_reason",
+    "bitrate_mode",
+    "sender_max_bitrate_bps",
+    "abr_mode",
+    "abr_target_bitrate_bps",
+    "abr_decision",
 ]
 
 
@@ -86,6 +91,11 @@ def render_stats_csv(samples):
                 "pli_count": metrics.get("pli_count", ""),
                 "fir_count": metrics.get("fir_count", ""),
                 "quality_limitation_reason": metrics.get("quality_limitation_reason", ""),
+                "bitrate_mode": metrics.get("bitrate_mode", ""),
+                "sender_max_bitrate_bps": metrics.get("sender_max_bitrate_bps", ""),
+                "abr_mode": metrics.get("abr_mode", ""),
+                "abr_target_bitrate_bps": metrics.get("abr_target_bitrate_bps", ""),
+                "abr_decision": metrics.get("abr_decision", ""),
             }
         )
     return buffer.getvalue()

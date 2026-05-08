@@ -116,7 +116,15 @@ async def test_test_session_finish_writes_isolated_csv_files(csv_client):
             "peer_id": "peer-a",
             "remote_peer_id": "peer-b",
             "test_session_id": session["test_session_id"],
-            "metrics": {"rtt_ms": 10.0, "nack_mode": "enabled"},
+            "metrics": {
+                "rtt_ms": 10.0,
+                "nack_mode": "enabled",
+                "bitrate_mode": "manual",
+                "sender_max_bitrate_bps": 600000,
+                "abr_mode": "on",
+                "abr_target_bitrate_bps": 450000,
+                "abr_decision": "increase",
+            },
         },
     )
     await csv_client.post(
@@ -159,5 +167,7 @@ async def test_test_session_finish_writes_isolated_csv_files(csv_client):
     assert csv_response.headers["Content-Type"].startswith("text/csv")
     assert ",room1," in csv_body
     assert ",peer-a,peer-b," in csv_body
+    assert "bitrate_mode,sender_max_bitrate_bps,abr_mode,abr_target_bitrate_bps,abr_decision" in csv_body
+    assert ",manual,600000,on,450000,increase" in csv_body
     assert ",peer-c," not in csv_body
     assert ",room2," not in csv_body

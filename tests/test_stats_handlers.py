@@ -186,7 +186,8 @@ async def test_stats_export_csv_returns_room_scoped_history(client):
         "candidate_pair_protocol,packets_sent,packets_received,bytes_sent,"
         "bytes_received,frames_sent,frames_received,frames_encoded,frames_decoded,"
         "frames_dropped,nack_enabled,nack_mode,nack_count,pli_count,fir_count,"
-        "quality_limitation_reason"
+        "quality_limitation_reason,bitrate_mode,sender_max_bitrate_bps,abr_mode,"
+        "abr_target_bitrate_bps,abr_decision"
     )
     assert ",room1," in body
     assert ",False,disabled," in body
