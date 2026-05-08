@@ -167,6 +167,19 @@
       metrics.bytes_sent + metrics.bytes_received
     );
 
+    if (
+      shared.state.abrMode === "on" &&
+      window.RTCTrainingBitrate &&
+      window.RTCTrainingBitrate.runAbrDecision
+    ) {
+      const abrResult = await window.RTCTrainingBitrate.runAbrDecision(metrics);
+      metrics.bitrate_mode = shared.state.bitrateMode;
+      metrics.sender_max_bitrate_bps = shared.state.senderMaxBitrateBps;
+      metrics.abr_mode = shared.state.abrMode;
+      metrics.abr_target_bitrate_bps = abrResult.target_bitrate_bps;
+      metrics.abr_decision = abrResult.decision;
+    }
+
     return {
       room_id: shared.state.roomId,
       peer_id: shared.state.clientId,

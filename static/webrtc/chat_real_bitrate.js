@@ -18,7 +18,7 @@
     parameters.encodings = parameters.encodings && parameters.encodings.length
       ? parameters.encodings
       : [{}];
-    if (shared.state.bitrateMode === "manual") {
+    if (["manual", "abr"].includes(shared.state.bitrateMode)) {
       parameters.encodings[0].maxBitrate = shared.state.senderMaxBitrateBps;
     } else {
       delete parameters.encodings[0].maxBitrate;

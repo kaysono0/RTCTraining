@@ -356,6 +356,55 @@ def test_webrtc_page_runs_simplified_abr_decisions(browser_context, webrtc_https
     expect(page.locator("#abrModeState")).to_have_text("abr_off")
 
 
+def test_webrtc_stats_upload_runs_abr_decision(browser_context, webrtc_https_server):
+    page = browser_context.new_page()
+
+    page.goto(webrtc_https_server)
+
+    assert page.evaluate("window.__RTCTrainingTestHooks.setAbrMode('on')") == "on"
+    result = page.evaluate(
+        """
+        async () => {
+          window.__appliedMaxBitrate = null;
+          const sender = {
+            track: { kind: "video" },
+            getParameters: () => ({ encodings: [{}] }),
+            setParameters: async (parameters) => {
+              window.__appliedMaxBitrate = parameters.encodings[0].maxBitrate;
+            }
+          };
+          window.RTCTrainingShared.state.peerConnections["peer-b"] = {
+            connectionState: "connected",
+            iceConnectionState: "connected",
+            getSenders: () => [sender],
+            getStats: async () => new Map([
+              ["inbound-video", {
+                id: "inbound-video",
+                type: "inbound-rtp",
+                isRemote: false,
+                packetsReceived: 95,
+                packetsLost: 5,
+                bytesReceived: 1000,
+                framesPerSecond: 30
+              }]
+            ])
+          };
+          await window.RTCTrainingStats.uploadAllPeerStats();
+          return {
+            appliedMaxBitrate: window.__appliedMaxBitrate,
+            sample: window.__RTCTrainingTestHooks.getLatestStats()["peer-b"]
+          };
+        }
+        """
+    )
+
+    assert result["appliedMaxBitrate"] == 1350000
+    assert result["sample"]["metrics"]["abr_mode"] == "on"
+    assert result["sample"]["metrics"]["abr_decision"] == "decrease"
+    assert result["sample"]["metrics"]["abr_target_bitrate_bps"] == 1350000
+    assert result["sample"]["metrics"]["sender_max_bitrate_bps"] == 1350000
+
+
 def test_webrtc_page_runs_test_session_lifecycle(browser_context, webrtc_https_server):
     page = browser_context.new_page()
 
