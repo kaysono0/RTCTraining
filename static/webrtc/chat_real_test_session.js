@@ -135,6 +135,12 @@
   }
 
   async function startTestSession(options) {
+    if (shared.state.testSessionId && shared.state.testSessionStatus === "running") {
+      throw new Error(
+        "A test session is already running (" + shared.state.testSessionId +
+        "). Finish or cancel it before starting a new one."
+      );
+    }
     const uiOptions = readUiOptions(options);
     await applyTestPreset(uiOptions.preset);
     const session = await postJson("/stats/test/start", {
@@ -162,6 +168,7 @@
     const session = await postJson("/stats/test/finish", {
       test_session_id: shared.state.testSessionId
     });
+    shared.state.testSessionId = null;
     shared.state.testSessionStatus = session.status;
     shared.state.testSession = session;
     renderTestSession();
@@ -179,9 +186,9 @@
     const session = await postJson("/stats/test/cancel", {
       test_session_id: shared.state.testSessionId
     });
+    shared.state.testSessionId = null;
     shared.state.testSessionStatus = session.status;
     shared.state.testSession = session;
-    shared.state.testSessionId = null;
     renderTestSession();
     shared.addTimelineEvent("test_session_canceled", {
       category: "test",

@@ -490,61 +490,342 @@
     };
   }
 
-  async function requestLocalMedia() {
-    try {
-      return await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: { facingMode: "user" }
+  function describeMediaTrack(track) {
+    const settings = track.getSettings ? track.getSettings() : {};
+    return {
+      kind: track.kind,
+      label: track.label,
+      id: track.id,
+      readyState: track.readyState,
+      enabled: track.enabled,
+      muted: track.muted,
+      settings: {
+        deviceId: settings.deviceId || "--",
+        width: settings.width,
+        height: settings.height,
+        facingMode: settings.facingMode,
+        frameRate: settings.frameRate,
+        aspectRatio: settings.aspectRatio,
+        sampleRate: settings.sampleRate,
+        channelCount: settings.channelCount,
+        echoCancellation: settings.echoCancellation,
+        noiseSuppression: settings.noiseSuppression,
+        autoGainControl: settings.autoGainControl
+      }
+    };
+  }
+
+  function summarizeTrack(track) {
+    const s = track.getSettings ? track.getSettings() : {};
+    const parts = [track.kind];
+    if (track.kind === "video") {
+      parts.push(`${s.width || "?"}x${s.height || "?"}`);
+      if (s.facingMode) parts.push(`facing=${s.facingMode}`);
+      if (s.frameRate) parts.push(`${s.frameRate}fps`);
+    }
+    if (track.kind === "audio") {
+      if (s.sampleRate) parts.push(`${(s.sampleRate / 1000).toFixed(1)}kHz`);
+      if (s.channelCount) parts.push(`${s.channelCount}ch`);
+    }
+    parts.push(`label="${track.label || "--"}"`);
+    return parts.join(" ");
+  }
+
+  var _envInfoLogged = false;
+  function logEnvInfo() {
+    if (_envInfoLogged) return;
+    _envInfoLogged = true;
+    var info = {
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      vendor: navigator.vendor,
+      secureContext: window.isSecureContext,
+      viewport: window.innerWidth + "x" + window.innerHeight,
+      devicePixelRatio: window.devicePixelRatio,
+      hasMediaDevices: !!(navigator.mediaDevices),
+      hasGetUserMedia: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+      hasEnumerateDevices: !!(navigator.mediaDevices && navigator.mediaDevices.enumerateDevices),
+      hasRTCPeerConnection: typeof RTCPeerConnection !== "undefined",
+      protocol: location.protocol
+    };
+    shared.addTimelineEvent("env_info", {
+      category: "media",
+      summary: "browser environment",
+      payload_preview: info.userAgent,
+      payload_full: JSON.stringify(info, null, 2)
+    });
+  }
+
+  function enumerateDevicesFireAndForget() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+      shared.addTimelineEvent("enumerate_devices_unavailable", {
+        category: "media",
+        summary: "enumerateDevices not available"
       });
+      return;
+    }
+    var logged = false;
+    var timer = setTimeout(function () {
+      if (!logged) {
+        logged = true;
+        shared.addTimelineEvent("enumerate_devices_timeout", {
+          category: "error",
+          summary: "enumerateDevices timed out after 3s, proceeding without device info"
+        });
+      }
+    }, 3000);
+    navigator.mediaDevices.enumerateDevices().then(function (devices) {
+      if (logged) return;
+      logged = true;
+      clearTimeout(timer);
+      var byKind = {};
+      devices.forEach(function (d) {
+        byKind[d.kind] = (byKind[d.kind] || 0) + 1;
+      });
+      var deviceList = devices.map(function (d) {
+        return d.kind + ": label=\"" + (d.label || "--") + "\" deviceId=" + (d.deviceId ? d.deviceId.slice(0, 12) + "..." : "--") + " groupId=" + (d.groupId ? d.groupId.slice(0, 12) + "..." : "--");
+      }).join("\n");
+      shared.addTimelineEvent("enumerate_devices", {
+        category: "media",
+        summary: Object.keys(byKind).map(function (k) { return k + "=" + byKind[k]; }).join(", "),
+        payload_preview: deviceList.slice(0, 300),
+        payload_full: JSON.stringify({
+          total: devices.length,
+          byKind: byKind,
+          devices: devices.map(function (d) { return { kind: d.kind, label: d.label || "--", deviceId: (d.deviceId || "").slice(0, 20), groupId: (d.groupId || "").slice(0, 20) }; })
+        }, null, 2)
+      });
+    }).catch(function (enumError) {
+      if (logged) return;
+      logged = true;
+      clearTimeout(timer);
+      shared.addTimelineEvent("enumerate_devices_error", {
+        category: "error",
+        summary: (enumError.name || "Error") + ": " + (enumError.message || String(enumError))
+      });
+    });
+  }
+
+  async function requestLocalMedia() {
+    var constraints1 = { audio: true, video: { facingMode: "user" } };
+    shared.addTimelineEvent("get_user_media_attempt", {
+      category: "media",
+      summary: "calling getUserMedia",
+      payload_preview: JSON.stringify(constraints1),
+      payload_full: JSON.stringify(constraints1, null, 2)
+    });
+    try {
+      var stream = await navigator.mediaDevices.getUserMedia(constraints1);
+      var trackInfo = stream.getTracks().map(function (t) { return summarizeTrack(t); }).join(" | ");
+      shared.addTimelineEvent("get_user_media_success", {
+        category: "media",
+        summary: trackInfo || "stream acquired",
+        payload_preview: trackInfo,
+        payload_full: JSON.stringify(stream.getTracks().map(describeMediaTrack), null, 2)
+      });
+      return stream;
     } catch (error) {
+      shared.addTimelineEvent("get_user_media_error", {
+        category: "error",
+        summary: (error.name || "MediaError") + ": " + (error.message || String(error)),
+        error_name: error.name,
+        error_message: error.message || String(error),
+        payload_preview: "constraints: " + JSON.stringify(constraints1),
+        payload_full: JSON.stringify({
+          error_name: error.name,
+          error_message: error.message,
+          constraints: constraints1
+        }, null, 2)
+      });
       if (error && error.name === "OverconstrainedError") {
-        return navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        var constraints2 = { audio: true, video: true };
+        shared.addTimelineEvent("get_user_media_retry", {
+          category: "media",
+          summary: "retrying with relaxed constraints after OverconstrainedError",
+          payload_preview: JSON.stringify(constraints2),
+          payload_full: JSON.stringify(constraints2, null, 2)
+        });
+        try {
+          var stream2 = await navigator.mediaDevices.getUserMedia(constraints2);
+          var trackInfo2 = stream2.getTracks().map(function (t) { return summarizeTrack(t); }).join(" | ");
+          shared.addTimelineEvent("get_user_media_success", {
+            category: "media",
+            summary: trackInfo2 || "stream acquired (retry)",
+            payload_preview: trackInfo2,
+            payload_full: JSON.stringify(stream2.getTracks().map(describeMediaTrack), null, 2)
+          });
+          return stream2;
+        } catch (retryError) {
+          shared.addTimelineEvent("get_user_media_error", {
+            category: "error",
+            summary: "retry: " + (retryError.name || "MediaError") + ": " + (retryError.message || String(retryError)),
+            error_name: retryError.name,
+            error_message: retryError.message || String(retryError),
+            payload_preview: "retry constraints: " + JSON.stringify(constraints2),
+            payload_full: JSON.stringify({
+              error_name: retryError.name,
+              error_message: retryError.message,
+              constraints: constraints2
+            }, null, 2)
+          });
+          throw retryError;
+        }
       }
       throw error;
     }
   }
 
   async function startMedia() {
+    logEnvInfo();
     shared.setConnectionState("media_requesting");
+    shared.addTimelineEvent("local_media_requesting", {
+      category: "media",
+      summary: "requesting camera and microphone"
+    });
+
+    enumerateDevicesFireAndForget();
+
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      var missingApiInfo = {
+        hasMediaDevices: !!navigator.mediaDevices,
+        hasGetUserMedia: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+        secureContext: window.isSecureContext,
+        protocol: location.protocol
+      };
+      shared.addTimelineEvent("media_api_missing", {
+        category: "error",
+        summary: "getUserMedia is unavailable",
+        payload_full: JSON.stringify(missingApiInfo, null, 2)
+      });
       const error = new Error("getUserMedia is unavailable. Use HTTPS and a browser that supports camera capture.");
       error.name = "NotSupportedError";
       throw error;
     }
+
     const stream = await requestLocalMedia();
     shared.state.localStream = stream;
+
+    var audioTracks = stream.getAudioTracks();
+    var videoTracks = stream.getVideoTracks();
+    shared.addTimelineEvent("local_stream_ready", {
+      category: "media",
+      summary: "audio=" + audioTracks.length + " video=" + videoTracks.length,
+      payload_preview: "audio tracks: " + audioTracks.length + ", video tracks: " + videoTracks.length,
+      payload_full: JSON.stringify({
+        audioTracks: audioTracks.map(describeMediaTrack),
+        videoTracks: videoTracks.map(describeMediaTrack),
+        streamId: stream.id,
+        active: stream.active
+      }, null, 2)
+    });
+
     const video = document.getElementById("localVideo");
     if (video) {
       video.muted = true;
       video.autoplay = true;
       video.playsInline = true;
       video.srcObject = stream;
+      shared.addTimelineEvent("local_video_bind", {
+        category: "media",
+        summary: "srcObject set on #localVideo",
+        payload_preview: "video.readyState=" + video.readyState + " video.networkState=" + video.networkState + " muted=" + video.muted + " autoplay=" + video.autoplay + " playsInline=" + video.playsInline,
+        payload_full: JSON.stringify({
+          tagName: video.tagName,
+          id: video.id,
+          readyState: video.readyState,
+          networkState: video.networkState,
+          muted: video.muted,
+          autoplay: video.autoplay,
+          playsInline: video.playsInline,
+          paused: video.paused,
+          ended: video.ended,
+          srcObjectSet: video.srcObject === stream,
+          videoWidth: video.videoWidth,
+          videoHeight: video.videoHeight
+        }, null, 2)
+      });
       if (video.play) {
-        video.play().catch(() => {});
+        video.play().then(function () {
+          shared.addTimelineEvent("local_video_playing", {
+            category: "media",
+            summary: "video.play() resolved",
+            payload_preview: "videoWidth=" + video.videoWidth + " videoHeight=" + video.videoHeight + " paused=" + video.paused
+          });
+        }).catch(function (playError) {
+          shared.addTimelineEvent("local_video_play_error", {
+            category: "error",
+            summary: "video.play() rejected: " + (playError.name || "Error") + ": " + (playError.message || String(playError)),
+            error_name: playError.name,
+            error_message: playError.message || String(playError),
+            payload_full: JSON.stringify({
+              error_name: playError.name,
+              error_message: playError.message,
+              videoPaused: video.paused,
+              videoReadyState: video.readyState,
+              muted: video.muted,
+              autoplay: video.autoplay,
+              playsInline: video.playsInline
+            }, null, 2)
+          });
+        });
       }
+    } else {
+      shared.addTimelineEvent("local_video_missing", {
+        category: "error",
+        summary: "#localVideo element not found in DOM"
+      });
     }
+
     shared.setConnectionState("media_ready");
-    shared.addTimelineEvent("local_media_ready", { category: "media" });
+    shared.addTimelineEvent("local_media_ready", {
+      category: "media",
+      summary: "media ready, tracks active=" + stream.active
+    });
     return true;
   }
 
   async function joinRoom(roomId, displayName) {
     shared.state.roomId = roomId || "room1";
     shared.state.localDisplayName = displayName || "Learner";
+    shared.addTimelineEvent("join_room_start", {
+      category: "room",
+      summary: "room=" + shared.state.roomId + " display=" + shared.state.localDisplayName + " hasLocalStream=" + !!shared.state.localStream
+    });
     if (!shared.state.localStream) {
+      shared.addTimelineEvent("join_auto_start_media", {
+        category: "media",
+        summary: "no localStream, calling startMedia() from joinRoom()"
+      });
       await startMedia();
     }
     shared.setConnectionState("joining");
+    var joinBody = {
+      room_id: shared.state.roomId,
+      client_id: shared.state.clientId,
+      display_name: displayName || "Learner"
+    };
+    shared.addTimelineEvent("join_api_request", {
+      category: "room",
+      summary: "POST /rooms/join",
+      payload_preview: JSON.stringify(joinBody),
+      payload_full: JSON.stringify(joinBody, null, 2)
+    });
     const response = await fetch("/rooms/join", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        room_id: shared.state.roomId,
-        client_id: shared.state.clientId,
-        display_name: displayName || "Learner"
-      })
+      body: JSON.stringify(joinBody)
     });
     const payload = await response.json();
+    shared.addTimelineEvent("join_api_response", {
+      category: "room",
+      summary: "HTTP " + response.status + " ok=" + payload.ok,
+      payload_full: JSON.stringify({
+        status: response.status,
+        ok: payload.ok,
+        data: payload.data ? { existing_peers_count: payload.data.existing_peers ? payload.data.existing_peers.length : 0 } : null,
+        error: payload.error || null
+      }, null, 2)
+    });
     if (!payload.ok) {
       shared.setConnectionState("failed");
       throw new Error(payload.error.message);

@@ -1,6 +1,14 @@
 (function () {
+  function createClientId() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return `peer-${window.crypto.randomUUID()}`;
+    }
+    const randomPart = Math.random().toString(36).slice(2, 12);
+    return `peer-${Date.now().toString(36)}-${randomPart}`;
+  }
+
   const state = {
-    clientId: `peer-${crypto.randomUUID()}`,
+    clientId: createClientId(),
     roomId: "room1",
     connectionState: "idle",
     peers: {},

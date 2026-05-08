@@ -99,3 +99,21 @@ def test_clear_removes_room_scoped_samples_only():
     assert removed == 1
     assert store.history(room_id="room1") == []
     assert store.history(room_id="room2") == [other]
+
+
+def test_latest_handles_mixed_none_and_string_test_session_ids():
+    store = StatsStore(now=lambda: 1000.0)
+    store.put_sample(sample(test_session_id=None, metrics={"rtt_ms": 10.0}))
+    store.put_sample(sample(test_session_id="session-abc", metrics={"rtt_ms": 20.0}))
+
+    result = store.latest(room_id="room1")
+    assert len(result) == 2
+
+
+def test_history_handles_mixed_none_and_string_test_session_ids():
+    store = StatsStore(now=lambda: 1000.0)
+    store.put_sample(sample(test_session_id=None, metrics={"rtt_ms": 10.0}))
+    store.put_sample(sample(test_session_id="session-abc", metrics={"rtt_ms": 20.0}))
+
+    result = store.history(room_id="room1")
+    assert len(result) == 2

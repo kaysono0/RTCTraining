@@ -211,3 +211,107 @@ async def test_test_session_list_returns_finished_sessions_with_csv_files(csv_cl
     assert payload["data"]["sessions"][0]["weak_network"] == {"profile": "loss_5"}
     assert payload["data"]["sessions"][0]["sample_count"] == 1
     assert payload["data"]["sessions"][0]["csv_files"][0]["remote_peer_id"] == "peer-b"
+
+
+@pytest.mark.asyncio
+async def test_finish_missing_test_session_id_returns_400(client):
+    response = await client.post("/stats/test/finish", json={})
+    assert response.status == 400
+    body = await response.json()
+    assert body["ok"] is False
+    assert body["error"]["code"] == "bad_request"
+
+
+@pytest.mark.asyncio
+async def test_finish_nonexistent_session_returns_404(client):
+    response = await client.post("/stats/test/finish", json={"test_session_id": "no-such-session"})
+    assert response.status == 404
+    body = await response.json()
+    assert body["ok"] is False
+    assert body["error"]["code"] == "not_found"
+
+
+@pytest.mark.asyncio
+async def test_cancel_missing_test_session_id_returns_400(client):
+    response = await client.post("/stats/test/cancel", json={})
+    assert response.status == 400
+    body = await response.json()
+    assert body["ok"] is False
+    assert body["error"]["code"] == "bad_request"
+
+
+@pytest.mark.asyncio
+async def test_cancel_nonexistent_session_returns_404(client):
+    response = await client.post("/stats/test/cancel", json={"test_session_id": "no-such-session"})
+    assert response.status == 404
+    body = await response.json()
+    assert body["ok"] is False
+    assert body["error"]["code"] == "not_found"
+
+
+@pytest.mark.asyncio
+async def test_download_csv_rejects_path_traversal(csv_client):
+    response = await csv_client.get("/stats/test/download/../../../etc/passwd")
+    assert response.status == 404
+
+
+@pytest.mark.asyncio
+async def test_download_csv_nonexistent_file_returns_404(csv_client):
+    response = await csv_client.get(
+        "/stats/test/download/room1/session-x/peer-a/nonexistent.csv"
+    )
+    assert response.status == 404
+
+
+@pytest.mark.asyncio
+async def test_list_sessions_without_room_id_returns_all_finished(csv_client):
+    started1 = await csv_client.post(
+        "/stats/test/start",
+        json={"room_id": "room1", "peer_id": "peer-a", "preset": "nack_on"},
+    )
+    s1 = (await started1.json())["data"]["session"]
+    started2 = await csv_client.post(
+        "/stats/test/start",
+        json={"room_id": "room2", "peer_id": "peer-a", "preset": "abr_simple"},
+    )
+    s2 = (await started2.json())["data"]["session"]
+    await csv_client.post(
+        "/stats/test/finish", json={"test_session_id": s1["test_session_id"]}
+    )
+    await csv_client.post(
+        "/stats/test/finish", json={"test_session_id": s2["test_session_id"]}
+    )
+
+    response = await csv_client.get("/stats/test/sessions")
+    payload = await response.json()
+
+    assert response.status == 200
+    assert payload["ok"] is True
+    ids = [s["test_session_id"] for s in payload["data"]["sessions"]]
+    assert s1["test_session_id"] in ids
+    assert s2["test_session_id"] in ids
+
+
+@pytest.mark.asyncio
+async def test_start_with_empty_body_handled_gracefully(client):
+    response = await client.post("/stats/test/start", data="not json")
+    assert response.status == 400
+    body = await response.json()
+    assert body["ok"] is False
+
+
+@pytest.mark.asyncio
+async def test_finish_session_with_no_stats_samples(csv_client):
+    started = await csv_client.post(
+        "/stats/test/start",
+        json={"room_id": "room1", "peer_id": "peer-a"},
+    )
+    session = (await started.json())["data"]["session"]
+    finished_resp = await csv_client.post(
+        "/stats/test/finish", json={"test_session_id": session["test_session_id"]}
+    )
+    finished = await finished_resp.json()
+    assert finished["data"]["session"]["status"] == "finished"
+    assert finished["data"]["session"]["sample_count"] == 0
+    assert len(finished["data"]["session"]["csv_files"]) == 1
+    assert finished["data"]["session"]["csv_files"][0]["remote_peer_id"] == "none"

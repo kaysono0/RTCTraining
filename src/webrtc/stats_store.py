@@ -99,7 +99,7 @@ class StatsStore:
             sample["room_id"],
             sample["peer_id"],
             sample["remote_peer_id"],
-            sample.get("test_session_id"),
+            sample.get("test_session_id") or "",
         )
 
     def _matches(self, key, *, room_id, peer_id, remote_peer_id, test_session_id):

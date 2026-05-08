@@ -143,7 +143,8 @@ def test_webrtc_page_can_start_media_join_and_leave_room(browser_context, webrtc
     )
     assert state == "joined"
     assert room_id == "e2e-room"
-    assert timeline_types == ["local_media_ready", "joined_room"]
+    for expected in ["local_media_requesting", "local_media_ready", "joined_room"]:
+        assert expected in timeline_types, f"expected {expected!r} in timeline, got {timeline_types}"
 
     page.get_by_role("button", name="Leave").click()
     expect(page.locator("#connectionState")).to_have_text("left")
@@ -200,7 +201,8 @@ def test_webrtc_join_starts_media_when_needed(browser_context, webrtc_https_serv
     timeline_types = page.evaluate(
         "window.__RTCTrainingTestHooks.getTimeline().map((event) => event.type)"
     )
-    assert timeline_types == ["local_media_ready", "joined_room"]
+    missing = [t for t in ["local_media_requesting", "local_media_ready", "joined_room"] if t not in timeline_types]
+    assert not missing, f"expected events not found: {missing}, timeline: {timeline_types}"
 
 
 def test_webrtc_media_error_records_browser_error_name(browser_context, webrtc_https_server):
@@ -223,6 +225,64 @@ def test_webrtc_media_error_records_browser_error_name(browser_context, webrtc_h
     assert media_error["type"] == "media_error"
     assert media_error["summary"] == "NotAllowedError: Permission denied for test"
     assert media_error["details"]["error_name"] == "NotAllowedError"
+
+
+def test_webrtc_media_request_writes_timeline_before_browser_prompt_resolves(
+    browser_context,
+    webrtc_https_server,
+):
+    page = browser_context.new_page()
+
+    page.goto(webrtc_https_server)
+    page.evaluate(
+        """
+        () => {
+          navigator.mediaDevices.getUserMedia = async () => new Promise(() => {});
+        }
+        """
+    )
+    page.get_by_role("button", name="Start Media").click()
+
+    expect(page.locator("#connectionState")).to_have_text("media_requesting")
+    timeline_types = page.evaluate(
+        "window.__RTCTrainingTestHooks.getTimeline().map((event) => event.type)"
+    )
+    assert "local_media_requesting" in timeline_types, (
+        f"expected local_media_requesting in timeline before getUserMedia resolves, got {timeline_types}"
+    )
+
+
+def test_webrtc_page_initializes_without_crypto_random_uuid(browser_context, webrtc_https_server):
+    browser_context.add_init_script(
+        """
+        () => {
+          Object.defineProperty(window.crypto, "randomUUID", {
+            value: undefined,
+            configurable: true
+          });
+        }
+        """
+    )
+    page = browser_context.new_page()
+
+    page.goto(webrtc_https_server)
+    page.evaluate(
+        """
+        () => {
+          navigator.mediaDevices.getUserMedia = async () => {
+            throw new DOMException("Camera blocked for test", "NotAllowedError");
+          };
+        }
+        """
+    )
+    page.get_by_role("button", name="Start Media").click()
+
+    expect(page.locator("#connectionState")).to_have_text("failed")
+    media_error = page.evaluate("window.__RTCTrainingTestHooks.getTimeline().at(-1)")
+    client_id = page.evaluate("window.__RTCTrainingTestHooks.getClientId()")
+    assert client_id.startswith("peer-")
+    assert media_error["type"] == "media_error"
+    assert media_error["summary"] == "NotAllowedError: Camera blocked for test"
 
 
 def test_webrtc_media_falls_back_when_facing_mode_is_overconstrained(
@@ -497,6 +557,154 @@ def test_webrtc_test_session_renders_metadata_and_download_groups(browser_contex
     expect(page.locator("#testSessionDetails")).to_contain_text("weak: loss_5")
     expect(page.locator("#testSessionDetails")).to_contain_text("samples: 4")
     expect(page.locator("#testSessionDownloads")).to_contain_text("peer-b")
+
+
+def test_webrtc_test_session_cancel_lifecycle(browser_context, webrtc_https_server):
+    page = browser_context.new_page()
+
+    page.goto(webrtc_https_server)
+
+    expect(page.locator("#testSessionState")).to_have_text("test_session_idle")
+
+    result = page.evaluate(
+        """
+        window.__RTCTrainingTestHooks.startTestSession({
+          preset: "nack_on",
+          metadata: { note: "cancel-test" },
+          weak_network: { profile: "none" }
+        })
+        """
+    )
+    assert result["status"] == "running"
+    session_id = result["test_session_id"]
+    assert page.evaluate("window.__RTCTrainingTestHooks.getTestSessionId()") == session_id
+    expect(page.locator("#testSessionState")).to_have_text("test_session_running")
+
+    canceled = page.evaluate("window.__RTCTrainingTestHooks.cancelTestSession()")
+    assert canceled["status"] == "canceled"
+
+    # After cancel, sessionId should be null so a new session can start
+    assert page.evaluate("window.__RTCTrainingTestHooks.getTestSessionId()") is None
+    expect(page.locator("#testSessionState")).to_have_text("test_session_canceled")
+
+    # Timeline should have both started and canceled events
+    timeline_types = page.evaluate(
+        "window.__RTCTrainingTestHooks.getTimeline().map(e => e.type)"
+    )
+    assert "test_session_started" in timeline_types
+    assert "test_session_canceled" in timeline_types
+
+
+def test_webrtc_test_session_timeline_events(browser_context, webrtc_https_server):
+    page = browser_context.new_page()
+
+    page.goto(webrtc_https_server)
+
+    page.evaluate(
+        """
+        window.__RTCTrainingTestHooks.startTestSession({
+          preset: "nack_on",
+          metadata: { note: "timeline-test" }
+        })
+        """
+    )
+    page.evaluate("window.__RTCTrainingTestHooks.finishTestSession()")
+
+    timeline = page.evaluate(
+        "window.__RTCTrainingTestHooks.getTimeline().map(e => ({type: e.type, category: e.category, summary: e.summary}))"
+    )
+
+    started = [e for e in timeline if e["type"] == "test_session_started"]
+    finished = [e for e in timeline if e["type"] == "test_session_finished"]
+
+    assert len(started) == 1, f"expected 1 test_session_started event, got {started}"
+    assert len(finished) == 1, f"expected 1 test_session_finished event, got {finished}"
+    assert started[0]["category"] == "test"
+    assert finished[0]["category"] == "test"
+    assert "samples=" in finished[0]["summary"]
+
+
+def test_webrtc_test_session_cancel_from_ui_button(browser_context, webrtc_https_server):
+    page = browser_context.new_page()
+
+    page.goto(webrtc_https_server)
+
+    # Start via test hook
+    page.evaluate(
+        """
+        window.__RTCTrainingTestHooks.startTestSession({
+          preset: "nack_on"
+        })
+        """
+    )
+    expect(page.locator("#testSessionState")).to_have_text("test_session_running")
+
+    # Click the Cancel button in the DOM
+    page.get_by_role("button", name="Cancel").click()
+    page.wait_for_timeout(500)
+
+    expect(page.locator("#testSessionState")).to_have_text("test_session_canceled")
+    assert page.evaluate("window.__RTCTrainingTestHooks.getTestSessionId()") is None
+
+
+def test_webrtc_test_session_start_rejects_when_running(browser_context, webrtc_https_server):
+    page = browser_context.new_page()
+
+    page.goto(webrtc_https_server)
+
+    page.evaluate(
+        """
+        (async () => {
+          await window.__RTCTrainingTestHooks.startTestSession({
+            preset: "nack_on"
+          });
+        })()
+        """
+    )
+    expect(page.locator("#testSessionState")).to_have_text("test_session_running")
+
+    # Starting a second session while one is running should throw (async rejection)
+    error_msg = page.evaluate(
+        """
+        (async () => {
+          try {
+            await window.__RTCTrainingTestHooks.startTestSession({ preset: "nack_off" });
+            return null;
+          } catch (e) {
+            return e.message;
+          }
+        })()
+        """
+    )
+    assert error_msg is not None, "expected error when starting second session"
+    assert "already running" in error_msg
+
+
+def test_webrtc_test_session_cancel_clears_state_for_new_session(browser_context, webrtc_https_server):
+    page = browser_context.new_page()
+
+    page.goto(webrtc_https_server)
+
+    # Start, cancel, then start again — should work
+    page.evaluate(
+        """
+        (async () => {
+          await window.__RTCTrainingTestHooks.startTestSession({ preset: 'nack_on' });
+          await window.__RTCTrainingTestHooks.cancelTestSession();
+        })()
+        """
+    )
+
+    # Second start should succeed (no "already running" error)
+    second = page.evaluate(
+        """
+        (async () => {
+          return await window.__RTCTrainingTestHooks.startTestSession({ preset: 'nack_off' });
+        })()
+        """
+    )
+    assert second["status"] == "running"
+    assert second["preset"] == "nack_off"
 
 
 def test_webrtc_hooks_survive_legacy_html_missing_nack_controls(

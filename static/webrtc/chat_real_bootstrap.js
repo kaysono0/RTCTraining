@@ -102,6 +102,10 @@ function bootstrapRTCTraining() {
   }
 
   addClickListener("startMediaButton", () => {
+    shared.addTimelineEvent("click_start_media", {
+      category: "media",
+      summary: "startMedia button clicked, connectionState=" + shared.state.connectionState
+    });
     session.startMedia().catch((error) => {
       shared.setConnectionState("failed");
       shared.addTimelineEvent("media_error", session.describeMediaError(error));
@@ -111,6 +115,10 @@ function bootstrapRTCTraining() {
   addClickListener("joinRoomButton", () => {
     const roomId = document.getElementById("roomIdInput").value;
     const displayName = document.getElementById("displayNameInput").value;
+    shared.addTimelineEvent("click_join_room", {
+      category: "room",
+      summary: "join button clicked, room=" + roomId + " display=" + displayName + " connectionState=" + shared.state.connectionState + " hasLocalStream=" + !!shared.state.localStream
+    });
     session.joinRoom(roomId, displayName).catch((error) => {
       shared.setConnectionState("failed");
       if (["NotAllowedError", "NotFoundError", "NotReadableError", "NotSupportedError", "OverconstrainedError"].includes(error.name)) {
