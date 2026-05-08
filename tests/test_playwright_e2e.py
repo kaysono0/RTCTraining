@@ -856,6 +856,44 @@ def test_dashboard_reports_csv_field_validation_errors(
     expect(page.locator("#csvValidationPanel")).to_contain_text("broken.csv: missing")
 
 
+def test_dashboard_csv_metric_selection_updates_trend_comparison(
+    browser_context,
+    dashboard_server,
+    webrtc_https_server,
+):
+    page = browser_context.new_page()
+
+    page.goto(f"{dashboard_server}/?webrtc_origin={webrtc_https_server}")
+    page.evaluate(
+        """
+        window.__RTCTrainingDashboardTestHooks.analyzeCsvTexts([
+          {
+            name: "stable.csv",
+            text: [
+              "sample_index,timestamp,room_id,test_session_id,peer_id,remote_peer_id,rtt_ms,packet_loss_rate,jitter_ms,bitrate_kbps,fps,nack_mode,abr_mode",
+              "1,1000,room1,s1,peer-a,peer-b,30,2,5,600,24,enabled,off"
+            ].join("\\n")
+          },
+          {
+            name: "fast.csv",
+            text: [
+              "sample_index,timestamp,room_id,test_session_id,peer_id,remote_peer_id,rtt_ms,packet_loss_rate,jitter_ms,bitrate_kbps,fps,nack_mode,abr_mode",
+              "1,1000,room1,s2,peer-a,peer-b,50,4,8,1200,30,enabled,off"
+            ].join("\\n")
+          }
+        ])
+        """
+    )
+
+    expect(page.locator("#csvTrendComparison")).to_contain_text("RTT best: stable.csv")
+    selected = page.evaluate("window.__RTCTrainingDashboardTestHooks.setCsvMetric('bitrate_kbps')")
+
+    assert selected == "bitrate_kbps"
+    expect(page.locator("#csvMetricSelect")).to_have_value("bitrate_kbps")
+    expect(page.locator("#csvTrendComparison")).to_contain_text("Bitrate best: fast.csv")
+    expect(page.locator("#csvTrendComparison")).not_to_contain_text("RTT best")
+
+
 def test_two_webrtc_pages_connect_and_render_remote_video(
     browser_context,
     webrtc_https_server,

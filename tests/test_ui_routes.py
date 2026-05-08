@@ -132,6 +132,7 @@ async def test_dashboard_homepage_declares_complete_stats_surface(dashboard_clie
         "meshTopology",
         "csvState",
         "csvFileInput",
+        "csvMetricSelect",
         "csvAnalyzeButton",
         "csvValidationPanel",
         "csvComparisonTable",
@@ -216,6 +217,7 @@ async def test_dashboard_static_assets_are_versioned_and_loadable(dashboard_clie
     assert "loadLiveStats" in js_body
     assert "clearLiveStats" in js_body
     assert "analyzeCsvTexts" in js_body
+    assert "setCsvMetric" in js_body
     assert "REQUIRED_CSV_FIELDS" in js_body
     assert '"NACK Mode"' in js_body
 

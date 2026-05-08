@@ -10,6 +10,10 @@
     snapshot: null,
     snapshotAvailable: true
   };
+  const csvAnalysisState = {
+    result: null,
+    metric: "rtt_ms"
+  };
   const REQUIRED_CSV_FIELDS = [
     "sample_index",
     "timestamp",
@@ -25,6 +29,13 @@
     "nack_mode",
     "abr_mode"
   ];
+  const CSV_METRICS = {
+    rtt_ms: { label: "RTT", avgField: "avg_rtt_ms", suffix: " ms", direction: "min" },
+    packet_loss_rate: { label: "Loss", avgField: "avg_packet_loss_rate", suffix: "%", direction: "min" },
+    jitter_ms: { label: "Jitter", avgField: "avg_jitter_ms", suffix: " ms", direction: "min" },
+    bitrate_kbps: { label: "Bitrate", avgField: "avg_bitrate_kbps", suffix: " kbps", direction: "max" },
+    fps: { label: "FPS", avgField: "avg_fps", suffix: "", direction: "max" }
+  };
 
   function queryParam(name) {
     return new URLSearchParams(window.location.search).get(name);
@@ -313,20 +324,23 @@
       }
     }
     if (trend) {
-      trend.innerHTML = "";
-      const rttBest = bestBy(result.files, "avg_rtt_ms", "min");
-      const lossBest = bestBy(result.files, "avg_packet_loss_rate", "min");
-      const bitrateBest = bestBy(result.files, "avg_bitrate_kbps", "max");
-      [
-        rttBest ? `RTT best: ${rttBest.name} (${formatMetric(rttBest.avg_rtt_ms, " ms")})` : "RTT best: -",
-        lossBest ? `Loss best: ${lossBest.name} (${formatMetric(lossBest.avg_packet_loss_rate, "%")})` : "Loss best: -",
-        bitrateBest ? `Bitrate best: ${bitrateBest.name} (${formatMetric(bitrateBest.avg_bitrate_kbps, " kbps")})` : "Bitrate best: -"
-      ].forEach((text) => {
-        const item = document.createElement("div");
-        item.textContent = text;
-        trend.appendChild(item);
-      });
+      renderCsvTrend(result);
     }
+  }
+
+  function renderCsvTrend(result) {
+    const trend = document.getElementById("csvTrendComparison");
+    if (!trend) {
+      return;
+    }
+    trend.innerHTML = "";
+    const metricConfig = CSV_METRICS[csvAnalysisState.metric] || CSV_METRICS.rtt_ms;
+    const best = bestBy(result.files, metricConfig.avgField, metricConfig.direction);
+    const item = document.createElement("div");
+    item.textContent = best
+      ? `${metricConfig.label} best: ${best.name} (${formatMetric(best[metricConfig.avgField], metricConfig.suffix)})`
+      : `${metricConfig.label} best: -`;
+    trend.appendChild(item);
   }
 
   function analyzeCsvTexts(entries) {
@@ -335,9 +349,22 @@
       ok: files.length > 0 && files.every((file) => file.ok),
       files
     };
+    csvAnalysisState.result = result;
     renderCsvAnalysis(result);
     setText("csvState", result.ok ? "csv_ready" : "csv_invalid");
     return result;
+  }
+
+  function setCsvMetric(metricName) {
+    csvAnalysisState.metric = CSV_METRICS[metricName] ? metricName : "rtt_ms";
+    const select = document.getElementById("csvMetricSelect");
+    if (select && select.value !== csvAnalysisState.metric) {
+      select.value = csvAnalysisState.metric;
+    }
+    if (csvAnalysisState.result) {
+      renderCsvTrend(csvAnalysisState.result);
+    }
+    return csvAnalysisState.metric;
   }
 
   async function analyzeSelectedCsvFiles() {
@@ -734,6 +761,12 @@
         setText("csvValidationPanel", error.message);
       });
     });
+    const csvMetricSelect = document.getElementById("csvMetricSelect");
+    if (csvMetricSelect) {
+      csvMetricSelect.addEventListener("change", (event) => {
+        setCsvMetric(event.target.value);
+      });
+    }
 
     window.__RTCTrainingDashboardTestHooks = {
       checkService,
@@ -741,6 +774,7 @@
       clearLiveStats,
       analyzeCsvTexts,
       analyzeSelectedCsvFiles,
+      setCsvMetric,
       getServiceState() {
         return document.getElementById("serviceState").textContent;
       },

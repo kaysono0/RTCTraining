@@ -152,7 +152,7 @@ select {
 
 .csv-controls {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) max-content;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 0.28fr) max-content;
   gap: 12px;
   margin-bottom: 12px;
 }

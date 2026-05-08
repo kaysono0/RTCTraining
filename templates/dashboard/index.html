@@ -96,6 +96,13 @@
         <h2>CSV Analysis</h2>
         <div class="csv-controls">
           <input id="csvFileInput" type="file" accept=".csv,text/csv" multiple aria-label="CSV files">
+          <select id="csvMetricSelect" aria-label="CSV comparison metric">
+            <option value="rtt_ms" selected>RTT</option>
+            <option value="packet_loss_rate">Loss</option>
+            <option value="jitter_ms">Jitter</option>
+            <option value="bitrate_kbps">Bitrate</option>
+            <option value="fps">FPS</option>
+          </select>
           <button id="csvAnalyzeButton" type="button">Analyze CSV</button>
         </div>
         <div id="csvValidationPanel" class="csv-validation-panel"></div>
