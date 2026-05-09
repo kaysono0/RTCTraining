@@ -14,8 +14,4 @@ class OriginPolicy:
         if parsed.scheme not in ("http", "https") or not parsed.netloc:
             return False
 
-        normalized = origin.rstrip("/")
-        if normalized in self.allowlist:
-            return True
-
-        return parsed.hostname in self.allowlist
+        return origin.rstrip("/") in self.allowlist

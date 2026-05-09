@@ -31,7 +31,12 @@ class Settings:
     exports_dir: str = "data/exports"
     test_sessions_dir: str = "data/test_sessions"
     charts_dir: str = "data/charts"
-    dashboard_origin_allowlist: str = "localhost,127.0.0.1,::1"
+    dashboard_origin_allowlist: str = (
+        "https://localhost:8080,"
+        "https://127.0.0.1:8080,"
+        "http://localhost:8080,"
+        "http://127.0.0.1:8080"
+    )
 
     @classmethod
     def from_env(cls):

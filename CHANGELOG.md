@@ -19,3 +19,4 @@
 - Added Dashboard core DOM/API client modules and a live stats view helper module.
 - Added WebRTC stats normalizer and remote stats view browser modules.
 - Added `DashboardSnapshotService` for Dashboard snapshot aggregation.
+- Tightened Dashboard origin policy to exact origins instead of hostname wildcards.

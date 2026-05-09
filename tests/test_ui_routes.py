@@ -5,6 +5,7 @@ from aiohttp import web
 
 from src.dashboard.server import create_dashboard_app
 from src.webrtc.app import create_webrtc_app
+from src.webrtc.config import Settings
 
 
 @pytest_asyncio.fixture
@@ -355,16 +356,25 @@ async def test_dashboard_loads_core_and_live_modules_before_main_script(dashboar
 
 
 @pytest.mark.asyncio
-async def test_dashboard_proxy_handles_non_json_upstream_response(aiohttp_client, dashboard_client):
+async def test_dashboard_proxy_handles_non_json_upstream_response(aiohttp_client):
     async def plain_text_response(request):
         return web.Response(text="not json", content_type="text/plain")
 
     upstream = web.Application()
     upstream.router.add_get("/dashboard/snapshot", plain_text_response)
     upstream_client = await aiohttp_client(upstream)
+    upstream_origin = str(upstream_client.make_url("/")).rstrip("/")
+    dashboard_client = await aiohttp_client(
+        create_dashboard_app(
+            settings=Settings(
+                dashboard_origin_allowlist=upstream_origin,
+                local_webrtc_origin=upstream_origin,
+            )
+        )
+    )
 
     response = await dashboard_client.get(
-        f"/api/webrtc/dashboard/snapshot?origin={upstream_client.make_url('/')}&room_id=room1"
+        f"/api/webrtc/dashboard/snapshot?origin={upstream_origin}&room_id=room1"
     )
     payload = await response.json()
 
