@@ -1,5 +1,6 @@
 import contextlib
 import json
+import os
 import re
 import socket
 import ssl
@@ -40,10 +41,11 @@ def wait_for_url(url, *, ignore_tls=False, timeout=10):
 
 
 @contextlib.contextmanager
-def managed_process(command):
+def managed_process(command, *, env=None):
     process = subprocess.Popen(
         command,
         cwd=PROJECT_ROOT,
+        env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -85,8 +87,11 @@ def webrtc_https_server():
 
 
 @pytest.fixture
-def dashboard_server():
+def dashboard_server(webrtc_https_server):
     port = free_port()
+    env = os.environ.copy()
+    env["RTC_DASHBOARD_ORIGIN_ALLOWLIST"] = webrtc_https_server
+    env["RTC_LOCAL_WEBRTC_ORIGIN"] = webrtc_https_server
     command = [
         sys.executable,
         "-m",
@@ -97,7 +102,7 @@ def dashboard_server():
         "--port",
         str(port),
     ]
-    with managed_process(command) as process:
+    with managed_process(command, env=env) as process:
         base_url = f"http://127.0.0.1:{port}"
         wait_for_url(f"{base_url}/")
         if process.poll() is not None:
@@ -371,6 +376,22 @@ def test_webrtc_page_applies_manual_sender_bitrate(browser_context, webrtc_https
     expect(page.locator("#bitrateModeState")).to_have_text("bitrate_auto")
     assert page.evaluate("window.__RTCTrainingTestHooks.getBitrateMode()") == "auto"
     assert page.evaluate("window.__RTCTrainingTestHooks.getSenderMaxBitrateBps()") is None
+
+
+def test_webrtc_stats_normalizer_computes_loss_rate(browser_context, webrtc_https_server):
+    page = browser_context.new_page()
+
+    page.goto(webrtc_https_server)
+    result = page.evaluate(
+        """
+        () => window.RTCTrainingStatsNormalizer.finalizeMetrics({
+          packets_received: 90,
+          packets_lost: 10
+        })
+        """
+    )
+
+    assert result["packet_loss_rate"] == 10
 
 
 def test_webrtc_page_runs_simplified_abr_decisions(browser_context, webrtc_https_server):
@@ -1144,6 +1165,102 @@ def test_dashboard_compares_multiple_csv_files(
     expect(page.locator("#csvValidationPanel")).to_contain_text("nack_on.csv: ok")
     expect(page.locator("#csvComparisonTable tbody tr")).to_have_count(2)
     expect(page.locator("#csvTrendComparison")).to_contain_text("RTT best: nack_on.csv")
+
+
+def test_dashboard_csv_modules_parse_and_summarize_rows(
+    browser_context,
+    dashboard_server,
+    webrtc_https_server,
+):
+    page = browser_context.new_page()
+
+    page.goto(f"{dashboard_server}/?webrtc_origin={webrtc_https_server}")
+    result = page.evaluate(
+        """
+        () => {
+          const parser = window.RTCTrainingDashboardCsvParser;
+          const analysis = window.RTCTrainingDashboardCsvAnalysis;
+          const parsed = parser.parseCsvText([
+            "sample_index,timestamp,room_id,test_session_id,peer_id,remote_peer_id,rtt_ms,packet_loss_rate,jitter_ms,bitrate_kbps,fps,nack_mode,abr_mode",
+            "1,1000,room1,s1,peer-a,peer-b,20,1,5,900,30,enabled,off",
+            "2,1001,room1,s1,peer-a,peer-b,30,3,7,700,28,enabled,off"
+          ].join("\\n"));
+          return {
+            headers: parsed.headers,
+            rowCount: parsed.rows.length,
+            quoted: parser.parseCsvLine("peer-a,\\"Alice, QA\\""),
+            summary: analysis.summarizeCsvFile({
+              name: "baseline.csv",
+              text: [
+                "sample_index,timestamp,room_id,test_session_id,peer_id,remote_peer_id,rtt_ms,packet_loss_rate,jitter_ms,bitrate_kbps,fps,nack_mode,abr_mode",
+                "1,1000,room1,s1,peer-a,peer-b,20,1,5,900,30,enabled,off",
+                "2,1001,room1,s1,peer-a,peer-b,30,3,7,700,28,enabled,off"
+              ].join("\\n")
+            })
+          };
+        }
+        """
+    )
+
+    assert "rtt_ms" in result["headers"]
+    assert result["rowCount"] == 2
+    assert result["quoted"] == ["peer-a", "Alice, QA"]
+    assert result["summary"]["ok"] is True
+    assert result["summary"]["sample_count"] == 2
+    assert result["summary"]["avg_rtt_ms"] == 25
+
+
+def test_dashboard_live_presenter_formats_peer_pairs_and_newest_sample(
+    browser_context,
+    dashboard_server,
+    webrtc_https_server,
+):
+    page = browser_context.new_page()
+
+    page.goto(f"{dashboard_server}/?webrtc_origin={webrtc_https_server}")
+    result = page.evaluate(
+        """
+        () => {
+          const presenter = window.RTCTrainingDashboardLivePresenter;
+          const labels = presenter.buildPeerLabelsFromMembers([
+            { peer_id: "peer-alpha-1234567890", display_name: "Alice" },
+            { peer_id: "peer-beta-1234567890", display_name: "Bob" }
+          ]);
+          const newest = presenter.newestSample([
+            { peer_id: "older", sample_index: 1 },
+            { peer_id: "newer", sample_index: 4 }
+          ]);
+          return {
+            pair: presenter.peerPairLabel("peer-alpha-1234567890", "peer-beta-1234567890", labels),
+            missing: presenter.peerPairLabel("peer-alpha-1234567890", "peer-missing-1234567890", labels),
+            newestPeer: newest.peer_id
+          };
+        }
+        """
+    )
+
+    assert result["pair"] == "Alice (peer-alpha-1...) -> Bob (peer-beta-12...)"
+    assert result["missing"] == "Alice (peer-alpha-1...) -> peer-missing..."
+    assert result["newestPeer"] == "newer"
+
+
+def test_dashboard_api_client_builds_origin_scoped_urls(
+    browser_context,
+    dashboard_server,
+):
+    page = browser_context.new_page()
+    page.goto(f"{dashboard_server}/?webrtc_origin=https%3A%2F%2Flocalhost%3A8080")
+
+    result = page.evaluate(
+        """
+        () => window.RTCTrainingDashboardApiClient.buildUrl(
+          "/api/webrtc/stats",
+          { room_id: "room1", peer_id: "alice" }
+        )
+        """
+    )
+
+    assert result == "/api/webrtc/stats?origin=https%3A%2F%2Flocalhost%3A8080&room_id=room1&peer_id=alice"
 
 
 def test_dashboard_reports_csv_field_validation_errors(

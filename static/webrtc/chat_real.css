@@ -414,26 +414,27 @@ video {
 
   .topbar {
     display: grid;
-    gap: 14px;
-    padding: 14px;
+    gap: 10px;
+    padding: 10px 12px;
   }
 
   .room-controls {
     display: grid;
-    gap: 12px;
+    gap: 8px;
     grid-template-columns: 1fr;
     width: 100%;
   }
 
   .control-group {
-    padding: 10px;
+    gap: 6px;
+    padding: 8px;
   }
 
   .identity-control-group,
   .nack-control-group,
   .bitrate-control-group,
   .abr-control-group {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .room-controls input,
@@ -451,7 +452,8 @@ video {
   }
 
   #abrModeState {
-    grid-column: span 2;
+    grid-column: span 3;
+    min-height: 30px;
   }
 
   .mobile-action-bar {

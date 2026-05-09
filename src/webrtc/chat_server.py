@@ -8,12 +8,13 @@ from src.webrtc.config import Settings
 
 
 def build_parser():
+    settings = Settings.from_env()
     parser = argparse.ArgumentParser(description="RTCTraining WebRTC HTTPS service")
     parser.add_argument("command", nargs="?", default="run", choices=["run"])
-    parser.add_argument("--host", default=Settings().webrtc_host)
-    parser.add_argument("--port", default=Settings().webrtc_port, type=int)
-    parser.add_argument("--cert", default=Settings().tls_cert_path)
-    parser.add_argument("--key", default=Settings().tls_key_path)
+    parser.add_argument("--host", default=settings.webrtc_host)
+    parser.add_argument("--port", default=settings.webrtc_port, type=int)
+    parser.add_argument("--cert", default=settings.tls_cert_path)
+    parser.add_argument("--key", default=settings.tls_key_path)
     parser.add_argument("--no-tls", action="store_true")
     return parser
 

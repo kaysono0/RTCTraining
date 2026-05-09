@@ -5,6 +5,7 @@ from aiohttp import web
 
 from src.dashboard.server import create_dashboard_app
 from src.webrtc.app import create_webrtc_app
+from src.webrtc.config import Settings
 
 
 @pytest_asyncio.fixture
@@ -15,6 +16,39 @@ async def webrtc_client(aiohttp_client):
 @pytest_asyncio.fixture
 async def dashboard_client(aiohttp_client):
     return await aiohttp_client(create_dashboard_app())
+
+
+def test_webrtc_app_registers_public_route_names():
+    app = create_webrtc_app()
+    route_names = {
+        route.name
+        for route in app.router.routes()
+        if route.name
+    }
+
+    for name in [
+        "webrtc_index",
+        "webrtc_static",
+        "rooms_join",
+        "rooms_leave",
+        "rooms_members",
+        "rooms_all_members",
+        "signal_send",
+        "signal_pending",
+        "stats_post",
+        "stats_latest",
+        "stats_history",
+        "stats_peers",
+        "dashboard_snapshot",
+        "stats_export_csv",
+        "stats_clear",
+        "test_session_start",
+        "test_session_finish",
+        "test_session_cancel",
+        "test_session_list",
+        "test_session_download",
+    ]:
+        assert name in route_names
 
 
 @pytest.mark.asyncio
@@ -59,6 +93,28 @@ async def test_webrtc_homepage_loads_experiment_shell(webrtc_client):
     assert 'id="testSessionDownloads"' in body
     assert "window.__RTCTrainingTestHooks" in body
     assert "chat_real_bitrate.js" in body
+
+
+@pytest.mark.asyncio
+async def test_webrtc_page_loads_stats_modules_before_stats_script(webrtc_client):
+    response = await webrtc_client.get("/")
+    body = await response.text()
+    script_paths = re.findall(r'src="([^"]+)"', body)
+
+    normalizer_path = next(path for path in script_paths if "rtc/stats_normalizer.js" in path)
+    view_path = next(path for path in script_paths if "ui/remote_stats_view.js" in path)
+    stats_path = next(path for path in script_paths if "chat_real_stats.js" in path)
+
+    assert script_paths.index(normalizer_path) < script_paths.index(stats_path)
+    assert script_paths.index(view_path) < script_paths.index(stats_path)
+
+    normalizer_response = await webrtc_client.get(normalizer_path)
+    view_response = await webrtc_client.get(view_path)
+
+    assert normalizer_response.status == 200
+    assert "RTCTrainingStatsNormalizer" in await normalizer_response.text()
+    assert view_response.status == 200
+    assert "RTCTrainingRemoteStatsView" in await view_response.text()
 
 
 @pytest.mark.asyncio
@@ -226,16 +282,106 @@ async def test_dashboard_static_assets_are_versioned_and_loadable(dashboard_clie
 
 
 @pytest.mark.asyncio
-async def test_dashboard_proxy_handles_non_json_upstream_response(aiohttp_client, dashboard_client):
+async def test_dashboard_loads_csv_modules_before_main_script(dashboard_client):
+    response = await dashboard_client.get("/")
+    body = await response.text()
+    script_paths = re.findall(r'src="([^"]+)"', body)
+
+    parser_path = next(path for path in script_paths if "csv/parser.js" in path)
+    analysis_path = next(path for path in script_paths if "csv/analysis.js" in path)
+    view_path = next(path for path in script_paths if "csv/view.js" in path)
+    dashboard_path = next(path for path in script_paths if "dashboard.js" in path)
+
+    assert script_paths.index(parser_path) < script_paths.index(dashboard_path)
+    assert script_paths.index(analysis_path) < script_paths.index(dashboard_path)
+    assert script_paths.index(view_path) < script_paths.index(dashboard_path)
+
+    parser_response = await dashboard_client.get(parser_path)
+    parser_body = await parser_response.text()
+    analysis_response = await dashboard_client.get(analysis_path)
+    analysis_body = await analysis_response.text()
+    view_response = await dashboard_client.get(view_path)
+    view_body = await view_response.text()
+
+    assert parser_response.status == 200
+    assert "RTCTrainingDashboardCsvParser" in parser_body
+    assert "parseCsvText" in parser_body
+    assert analysis_response.status == 200
+    assert "RTCTrainingDashboardCsvAnalysis" in analysis_body
+    assert "summarizeCsvFile" in analysis_body
+    assert view_response.status == 200
+    assert "RTCTrainingDashboardCsvView" in view_body
+    assert "rangeCell" in view_body
+
+
+@pytest.mark.asyncio
+async def test_dashboard_loads_live_presenter_before_main_script(dashboard_client):
+    response = await dashboard_client.get("/")
+    body = await response.text()
+    script_paths = re.findall(r'src="([^"]+)"', body)
+
+    presenter_path = next(path for path in script_paths if "live/presenter.js" in path)
+    dashboard_path = next(path for path in script_paths if "dashboard.js" in path)
+
+    assert script_paths.index(presenter_path) < script_paths.index(dashboard_path)
+
+    presenter_response = await dashboard_client.get(presenter_path)
+    presenter_body = await presenter_response.text()
+
+    assert presenter_response.status == 200
+    assert "RTCTrainingDashboardLivePresenter" in presenter_body
+    assert "peerPairLabel" in presenter_body
+    assert "newestSample" in presenter_body
+
+
+@pytest.mark.asyncio
+async def test_dashboard_loads_core_and_live_modules_before_main_script(dashboard_client):
+    response = await dashboard_client.get("/")
+    body = await response.text()
+    script_paths = re.findall(r'src="([^"]+)"', body)
+
+    module_paths = [
+        next(path for path in script_paths if "core/dom.js" in path),
+        next(path for path in script_paths if "core/api_client.js" in path),
+        next(path for path in script_paths if "live/stats_view.js" in path),
+    ]
+    dashboard_path = next(path for path in script_paths if "dashboard.js" in path)
+
+    for module_path in module_paths:
+        assert script_paths.index(module_path) < script_paths.index(dashboard_path)
+
+    dom_response = await dashboard_client.get(module_paths[0])
+    api_response = await dashboard_client.get(module_paths[1])
+    stats_response = await dashboard_client.get(module_paths[2])
+
+    assert dom_response.status == 200
+    assert "RTCTrainingDashboardDom" in await dom_response.text()
+    assert api_response.status == 200
+    assert "RTCTrainingDashboardApiClient" in await api_response.text()
+    assert stats_response.status == 200
+    assert "RTCTrainingDashboardStatsView" in await stats_response.text()
+
+
+@pytest.mark.asyncio
+async def test_dashboard_proxy_handles_non_json_upstream_response(aiohttp_client):
     async def plain_text_response(request):
         return web.Response(text="not json", content_type="text/plain")
 
     upstream = web.Application()
     upstream.router.add_get("/dashboard/snapshot", plain_text_response)
     upstream_client = await aiohttp_client(upstream)
+    upstream_origin = str(upstream_client.make_url("/")).rstrip("/")
+    dashboard_client = await aiohttp_client(
+        create_dashboard_app(
+            settings=Settings(
+                dashboard_origin_allowlist=upstream_origin,
+                local_webrtc_origin=upstream_origin,
+            )
+        )
+    )
 
     response = await dashboard_client.get(
-        f"/api/webrtc/dashboard/snapshot?origin={upstream_client.make_url('/')}&room_id=room1"
+        f"/api/webrtc/dashboard/snapshot?origin={upstream_origin}&room_id=room1"
     )
     payload = await response.json()
 

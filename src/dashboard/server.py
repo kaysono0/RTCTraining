@@ -1,12 +1,13 @@
 import argparse
 from pathlib import Path
-from urllib.parse import urlencode, urlparse
 
 from aiohttp import ClientError, ClientResponseError, ClientSession, ClientTimeout, TCPConnector
 from aiohttp import web
 
 from src.webrtc.response import error_payload, success_payload
 from src.webrtc.config import Settings
+from src.dashboard.origin_policy import OriginPolicy
+from src.dashboard.proxy_client import build_upstream_url
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -57,23 +58,15 @@ async def webrtc_proxy_json(request, upstream_path):
 
 
 async def _webrtc_proxy_json(request, upstream_path, method):
-    origin = request.query.get("origin", Settings().local_webrtc_origin)
-    parsed = urlparse(origin)
-    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+    settings = request.app["settings"]
+    origin = request.query.get("origin", settings.local_webrtc_origin)
+    if not request.app["origin_policy"].is_allowed(origin):
         return web.json_response(
-            error_payload("bad_request", "origin must be an http or https URL", {"origin": origin}),
+            error_payload("bad_request", "origin is not allowed", {"origin": origin}),
             status=400,
         )
 
-    upstream_query = {
-        key: value
-        for key, value in request.query.items()
-        if key != "origin"
-    }
-    query_string = urlencode(upstream_query)
-    url = f"{origin.rstrip('/')}{upstream_path}"
-    if query_string:
-        url = f"{url}?{query_string}"
+    url = build_upstream_url(origin, upstream_path, request.query)
 
     connector = TCPConnector(ssl=False)
     timeout = ClientTimeout(total=3)
@@ -112,11 +105,11 @@ async def _webrtc_proxy_json(request, upstream_path, method):
 
 
 async def _webrtc_proxy_file(request, upstream_path):
-    origin = request.query.get("origin", Settings().local_webrtc_origin)
-    parsed = urlparse(origin)
-    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+    settings = request.app["settings"]
+    origin = request.query.get("origin", settings.local_webrtc_origin)
+    if not request.app["origin_policy"].is_allowed(origin):
         return web.json_response(
-            error_payload("bad_request", "origin must be an http or https URL", {"origin": origin}),
+            error_payload("bad_request", "origin is not allowed", {"origin": origin}),
             status=400,
         )
 
@@ -149,8 +142,11 @@ async def _read_upstream_json(response):
         raise
 
 
-def create_dashboard_app():
+def create_dashboard_app(settings=None):
+    settings = settings or Settings.from_env()
     app = web.Application()
+    app["settings"] = settings
+    app["origin_policy"] = OriginPolicy.from_csv(settings.dashboard_origin_allowlist)
     app.router.add_get("/", dashboard_index)
     app.router.add_get("/api/webrtc/members", webrtc_members_proxy)
     app.router.add_get("/api/webrtc/stats", webrtc_stats_proxy)
@@ -169,10 +165,11 @@ def create_dashboard_app():
 
 
 def build_parser():
+    settings = Settings.from_env()
     parser = argparse.ArgumentParser(description="RTCTraining Dashboard service")
     parser.add_argument("command", nargs="?", default="run", choices=["run"])
-    parser.add_argument("--host", default=Settings().dashboard_host)
-    parser.add_argument("--port", default=Settings().dashboard_port, type=int)
+    parser.add_argument("--host", default=settings.dashboard_host)
+    parser.add_argument("--port", default=settings.dashboard_port, type=int)
     return parser
 
 

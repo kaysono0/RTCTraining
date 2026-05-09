@@ -159,6 +159,8 @@ async def test_test_session_finish_writes_isolated_csv_files(csv_client):
     assert [file["remote_peer_id"] for file in files] == ["peer-b", "peer-c"]
     assert all(file["room_id"] == "room1" for file in files)
     assert all(file["test_session_id"] == session["test_session_id"] for file in files)
+    assert all("path" not in file for file in files)
+    assert files[0]["relative_path"].endswith("/peer-a/peer-b.csv")
 
     csv_response = await csv_client.get(files[0]["download_url"])
     csv_body = await csv_response.text()

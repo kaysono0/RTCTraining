@@ -82,6 +82,19 @@ make test
 
 ## 4. HTTP Smoke 验证
 
+自动 smoke：
+
+```bash
+make harness-smoke
+```
+
+`make harness-smoke` 默认使用本地临时端口启动 WebRTC 和 Dashboard，
+避免与手工启动的 `8080` / `8081` 服务冲突。需要固定端口时可直接调用：
+
+```bash
+.venv/bin/python -m automation.harness.smoke --webrtc-port 8080 --dashboard-port 8081 --generate-cert
+```
+
 WebRTC 首页：
 
 ```bash
