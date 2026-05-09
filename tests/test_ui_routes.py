@@ -17,6 +17,39 @@ async def dashboard_client(aiohttp_client):
     return await aiohttp_client(create_dashboard_app())
 
 
+def test_webrtc_app_registers_public_route_names():
+    app = create_webrtc_app()
+    route_names = {
+        route.name
+        for route in app.router.routes()
+        if route.name
+    }
+
+    for name in [
+        "webrtc_index",
+        "webrtc_static",
+        "rooms_join",
+        "rooms_leave",
+        "rooms_members",
+        "rooms_all_members",
+        "signal_send",
+        "signal_pending",
+        "stats_post",
+        "stats_latest",
+        "stats_history",
+        "stats_peers",
+        "dashboard_snapshot",
+        "stats_export_csv",
+        "stats_clear",
+        "test_session_start",
+        "test_session_finish",
+        "test_session_cancel",
+        "test_session_list",
+        "test_session_download",
+    ]:
+        assert name in route_names
+
+
 @pytest.mark.asyncio
 async def test_webrtc_homepage_loads_experiment_shell(webrtc_client):
     response = await webrtc_client.get("/")
