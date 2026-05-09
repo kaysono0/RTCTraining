@@ -1,6 +1,5 @@
 import argparse
 from pathlib import Path
-from urllib.parse import urlencode
 
 from aiohttp import ClientError, ClientResponseError, ClientSession, ClientTimeout, TCPConnector
 from aiohttp import web
@@ -8,6 +7,7 @@ from aiohttp import web
 from src.webrtc.response import error_payload, success_payload
 from src.webrtc.config import Settings
 from src.dashboard.origin_policy import OriginPolicy
+from src.dashboard.proxy_client import build_upstream_url
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -66,15 +66,7 @@ async def _webrtc_proxy_json(request, upstream_path, method):
             status=400,
         )
 
-    upstream_query = {
-        key: value
-        for key, value in request.query.items()
-        if key != "origin"
-    }
-    query_string = urlencode(upstream_query)
-    url = f"{origin.rstrip('/')}{upstream_path}"
-    if query_string:
-        url = f"{url}?{query_string}"
+    url = build_upstream_url(origin, upstream_path, request.query)
 
     connector = TCPConnector(ssl=False)
     timeout = ClientTimeout(total=3)
