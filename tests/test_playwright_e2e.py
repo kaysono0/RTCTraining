@@ -1146,6 +1146,49 @@ def test_dashboard_compares_multiple_csv_files(
     expect(page.locator("#csvTrendComparison")).to_contain_text("RTT best: nack_on.csv")
 
 
+def test_dashboard_csv_modules_parse_and_summarize_rows(
+    browser_context,
+    dashboard_server,
+    webrtc_https_server,
+):
+    page = browser_context.new_page()
+
+    page.goto(f"{dashboard_server}/?webrtc_origin={webrtc_https_server}")
+    result = page.evaluate(
+        """
+        () => {
+          const parser = window.RTCTrainingDashboardCsvParser;
+          const analysis = window.RTCTrainingDashboardCsvAnalysis;
+          const parsed = parser.parseCsvText([
+            "sample_index,timestamp,room_id,test_session_id,peer_id,remote_peer_id,rtt_ms,packet_loss_rate,jitter_ms,bitrate_kbps,fps,nack_mode,abr_mode",
+            "1,1000,room1,s1,peer-a,peer-b,20,1,5,900,30,enabled,off",
+            "2,1001,room1,s1,peer-a,peer-b,30,3,7,700,28,enabled,off"
+          ].join("\\n"));
+          return {
+            headers: parsed.headers,
+            rowCount: parsed.rows.length,
+            quoted: parser.parseCsvLine("peer-a,\\"Alice, QA\\""),
+            summary: analysis.summarizeCsvFile({
+              name: "baseline.csv",
+              text: [
+                "sample_index,timestamp,room_id,test_session_id,peer_id,remote_peer_id,rtt_ms,packet_loss_rate,jitter_ms,bitrate_kbps,fps,nack_mode,abr_mode",
+                "1,1000,room1,s1,peer-a,peer-b,20,1,5,900,30,enabled,off",
+                "2,1001,room1,s1,peer-a,peer-b,30,3,7,700,28,enabled,off"
+              ].join("\\n")
+            })
+          };
+        }
+        """
+    )
+
+    assert "rtt_ms" in result["headers"]
+    assert result["rowCount"] == 2
+    assert result["quoted"] == ["peer-a", "Alice, QA"]
+    assert result["summary"]["ok"] is True
+    assert result["summary"]["sample_count"] == 2
+    assert result["summary"]["avg_rtt_ms"] == 25
+
+
 def test_dashboard_reports_csv_field_validation_errors(
     browser_context,
     dashboard_server,

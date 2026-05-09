@@ -37,6 +37,8 @@
     bitrate_kbps: { label: "Bitrate", avgField: "avg_bitrate_kbps", suffix: " kbps", direction: "max" },
     fps: { label: "FPS", avgField: "avg_fps", suffix: "", direction: "max" }
   };
+  const csvParser = window.RTCTrainingDashboardCsvParser;
+  const csvAnalysis = window.RTCTrainingDashboardCsvAnalysis;
 
   function queryParam(name) {
     return new URLSearchParams(window.location.search).get(name);
@@ -183,6 +185,9 @@
   }
 
   function parseCsvLine(line) {
+    if (csvParser && csvParser.parseCsvLine) {
+      return csvParser.parseCsvLine(line);
+    }
     const cells = [];
     let cell = "";
     let inQuotes = false;
@@ -206,6 +211,9 @@
   }
 
   function parseCsvText(text) {
+    if (csvParser && csvParser.parseCsvText) {
+      return csvParser.parseCsvText(text);
+    }
     const lines = String(text || "").trim().split(/\r?\n/).filter(Boolean);
     if (lines.length === 0) {
       return { headers: [], rows: [] };
@@ -222,17 +230,26 @@
   }
 
   function numberFromRow(row, field) {
+    if (csvAnalysis && csvAnalysis.numberFromRow) {
+      return csvAnalysis.numberFromRow(row, field);
+    }
     const value = Number(row[field]);
     return Number.isFinite(value) ? value : null;
   }
 
   function extractValues(rows, field) {
+    if (csvAnalysis && csvAnalysis.extractValues) {
+      return csvAnalysis.extractValues(rows, field);
+    }
     return rows
       .map((row) => numberFromRow(row, field))
       .filter((value) => value !== null);
   }
 
   function average(rows, field) {
+    if (csvAnalysis && csvAnalysis.average) {
+      return csvAnalysis.average(rows, field);
+    }
     const values = extractValues(rows, field);
     if (values.length === 0) {
       return null;
@@ -241,6 +258,9 @@
   }
 
   function minValue(rows, field) {
+    if (csvAnalysis && csvAnalysis.minValue) {
+      return csvAnalysis.minValue(rows, field);
+    }
     const values = extractValues(rows, field);
     if (values.length === 0) {
       return null;
@@ -249,6 +269,9 @@
   }
 
   function maxValue(rows, field) {
+    if (csvAnalysis && csvAnalysis.maxValue) {
+      return csvAnalysis.maxValue(rows, field);
+    }
     const values = extractValues(rows, field);
     if (values.length === 0) {
       return null;
@@ -257,6 +280,9 @@
   }
 
   function uniqueLabel(rows, field) {
+    if (csvAnalysis && csvAnalysis.uniqueLabel) {
+      return csvAnalysis.uniqueLabel(rows, field);
+    }
     const values = [...new Set(rows.map((row) => row[field]).filter(Boolean))];
     if (values.length === 0) {
       return "-";
@@ -265,6 +291,9 @@
   }
 
   function summarizeCsvFile(entry) {
+    if (csvAnalysis && csvAnalysis.summarizeCsvFile) {
+      return csvAnalysis.summarizeCsvFile(entry);
+    }
     const parsed = parseCsvText(entry.text);
     const missing = REQUIRED_CSV_FIELDS.filter((field) => !parsed.headers.includes(field));
     if (missing.length) {
