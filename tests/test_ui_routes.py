@@ -305,6 +305,34 @@ async def test_dashboard_loads_live_presenter_before_main_script(dashboard_clien
 
 
 @pytest.mark.asyncio
+async def test_dashboard_loads_core_and_live_modules_before_main_script(dashboard_client):
+    response = await dashboard_client.get("/")
+    body = await response.text()
+    script_paths = re.findall(r'src="([^"]+)"', body)
+
+    module_paths = [
+        next(path for path in script_paths if "core/dom.js" in path),
+        next(path for path in script_paths if "core/api_client.js" in path),
+        next(path for path in script_paths if "live/stats_view.js" in path),
+    ]
+    dashboard_path = next(path for path in script_paths if "dashboard.js" in path)
+
+    for module_path in module_paths:
+        assert script_paths.index(module_path) < script_paths.index(dashboard_path)
+
+    dom_response = await dashboard_client.get(module_paths[0])
+    api_response = await dashboard_client.get(module_paths[1])
+    stats_response = await dashboard_client.get(module_paths[2])
+
+    assert dom_response.status == 200
+    assert "RTCTrainingDashboardDom" in await dom_response.text()
+    assert api_response.status == 200
+    assert "RTCTrainingDashboardApiClient" in await api_response.text()
+    assert stats_response.status == 200
+    assert "RTCTrainingDashboardStatsView" in await stats_response.text()
+
+
+@pytest.mark.asyncio
 async def test_dashboard_proxy_handles_non_json_upstream_response(aiohttp_client, dashboard_client):
     async def plain_text_response(request):
         return web.Response(text="not json", content_type="text/plain")

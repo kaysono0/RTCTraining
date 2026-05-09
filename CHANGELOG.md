@@ -16,3 +16,4 @@
 - Added named WebRTC route registration via `src.webrtc.api.route_registry`.
 - Added standalone Dashboard CSV parser and analysis browser modules.
 - Added standalone Dashboard live stats presenter helpers for peer labels and newest sample selection.
+- Added Dashboard core DOM/API client modules and a live stats view helper module.

@@ -1223,6 +1223,25 @@ def test_dashboard_live_presenter_formats_peer_pairs_and_newest_sample(
     assert result["newestPeer"] == "newer"
 
 
+def test_dashboard_api_client_builds_origin_scoped_urls(
+    browser_context,
+    dashboard_server,
+):
+    page = browser_context.new_page()
+    page.goto(f"{dashboard_server}/?webrtc_origin=https%3A%2F%2Flocalhost%3A8080")
+
+    result = page.evaluate(
+        """
+        () => window.RTCTrainingDashboardApiClient.buildUrl(
+          "/api/webrtc/stats",
+          { room_id: "room1", peer_id: "alice" }
+        )
+        """
+    )
+
+    assert result == "/api/webrtc/stats?origin=https%3A%2F%2Flocalhost%3A8080&room_id=room1&peer_id=alice"
+
+
 def test_dashboard_reports_csv_field_validation_errors(
     browser_context,
     dashboard_server,

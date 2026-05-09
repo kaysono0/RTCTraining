@@ -37,7 +37,8 @@
     bitrate_kbps: { label: "Bitrate", avgField: "avg_bitrate_kbps", suffix: " kbps", direction: "max" },
     fps: { label: "FPS", avgField: "avg_fps", suffix: "", direction: "max" }
   };
-  const csvParser = window.RTCTrainingDashboardCsvParser;
+  const dom = window.RTCTrainingDashboardDom;
+  const statsView = window.RTCTrainingDashboardStatsView;
   const csvAnalysis = window.RTCTrainingDashboardCsvAnalysis;
   const livePresenter = window.RTCTrainingDashboardLivePresenter;
 
@@ -46,6 +47,10 @@
   }
 
   function setText(id, text) {
+    if (dom && dom.setText) {
+      dom.setText(id, text);
+      return;
+    }
     const element = document.getElementById(id);
     if (element) {
       element.textContent = text;
@@ -53,6 +58,10 @@
   }
 
   function addClickListener(id, callback) {
+    if (dom && dom.addClickListener) {
+      dom.addClickListener(id, callback);
+      return;
+    }
     const element = document.getElementById(id);
     if (element) {
       element.addEventListener("click", callback);
@@ -60,6 +69,9 @@
   }
 
   function getText(id) {
+    if (dom && dom.getText) {
+      return dom.getText(id);
+    }
     const element = document.getElementById(id);
     return element ? element.textContent : "";
   }
@@ -70,6 +82,9 @@
   }
 
   function formatMetric(value, suffix) {
+    if (statsView && statsView.formatMetric) {
+      return statsView.formatMetric(value, suffix);
+    }
     if (value === undefined || value === null || value === "") {
       return "-";
     }
@@ -117,6 +132,9 @@
   }
 
   function newestSample(samples) {
+    if (statsView && statsView.newestSample) {
+      return statsView.newestSample(samples);
+    }
     if (livePresenter && livePresenter.newestSample) {
       return livePresenter.newestSample(samples);
     }
@@ -200,51 +218,6 @@
     });
   }
 
-  function parseCsvLine(line) {
-    if (csvParser && csvParser.parseCsvLine) {
-      return csvParser.parseCsvLine(line);
-    }
-    const cells = [];
-    let cell = "";
-    let inQuotes = false;
-    for (let index = 0; index < line.length; index += 1) {
-      const char = line[index];
-      const next = line[index + 1];
-      if (char === '"' && inQuotes && next === '"') {
-        cell += '"';
-        index += 1;
-      } else if (char === '"') {
-        inQuotes = !inQuotes;
-      } else if (char === "," && !inQuotes) {
-        cells.push(cell);
-        cell = "";
-      } else {
-        cell += char;
-      }
-    }
-    cells.push(cell);
-    return cells;
-  }
-
-  function parseCsvText(text) {
-    if (csvParser && csvParser.parseCsvText) {
-      return csvParser.parseCsvText(text);
-    }
-    const lines = String(text || "").trim().split(/\r?\n/).filter(Boolean);
-    if (lines.length === 0) {
-      return { headers: [], rows: [] };
-    }
-    const headers = parseCsvLine(lines[0]);
-    const rows = lines.slice(1).map((line) => {
-      const values = parseCsvLine(line);
-      return headers.reduce((row, header, index) => {
-        row[header] = values[index] || "";
-        return row;
-      }, {});
-    });
-    return { headers, rows };
-  }
-
   function numberFromRow(row, field) {
     if (csvAnalysis && csvAnalysis.numberFromRow) {
       return csvAnalysis.numberFromRow(row, field);
@@ -253,98 +226,16 @@
     return Number.isFinite(value) ? value : null;
   }
 
-  function extractValues(rows, field) {
-    if (csvAnalysis && csvAnalysis.extractValues) {
-      return csvAnalysis.extractValues(rows, field);
-    }
-    return rows
-      .map((row) => numberFromRow(row, field))
-      .filter((value) => value !== null);
-  }
-
-  function average(rows, field) {
-    if (csvAnalysis && csvAnalysis.average) {
-      return csvAnalysis.average(rows, field);
-    }
-    const values = extractValues(rows, field);
-    if (values.length === 0) {
-      return null;
-    }
-    return Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(2));
-  }
-
-  function minValue(rows, field) {
-    if (csvAnalysis && csvAnalysis.minValue) {
-      return csvAnalysis.minValue(rows, field);
-    }
-    const values = extractValues(rows, field);
-    if (values.length === 0) {
-      return null;
-    }
-    return Number(Math.min(...values).toFixed(2));
-  }
-
-  function maxValue(rows, field) {
-    if (csvAnalysis && csvAnalysis.maxValue) {
-      return csvAnalysis.maxValue(rows, field);
-    }
-    const values = extractValues(rows, field);
-    if (values.length === 0) {
-      return null;
-    }
-    return Number(Math.max(...values).toFixed(2));
-  }
-
-  function uniqueLabel(rows, field) {
-    if (csvAnalysis && csvAnalysis.uniqueLabel) {
-      return csvAnalysis.uniqueLabel(rows, field);
-    }
-    const values = [...new Set(rows.map((row) => row[field]).filter(Boolean))];
-    if (values.length === 0) {
-      return "-";
-    }
-    return values.length === 1 ? values[0] : `${values[0]} +${values.length - 1}`;
-  }
-
   function summarizeCsvFile(entry) {
     if (csvAnalysis && csvAnalysis.summarizeCsvFile) {
       return csvAnalysis.summarizeCsvFile(entry);
     }
-    const parsed = parseCsvText(entry.text);
-    const missing = REQUIRED_CSV_FIELDS.filter((field) => !parsed.headers.includes(field));
-    if (missing.length) {
-      return {
-        name: entry.name,
-        ok: false,
-        missing,
-        sample_count: parsed.rows.length
-      };
-    }
     return {
       name: entry.name,
-      ok: true,
-      missing: [],
-      sample_count: parsed.rows.length,
-      room_id: uniqueLabel(parsed.rows, "room_id"),
-      test_session_id: uniqueLabel(parsed.rows, "test_session_id"),
-      peer_id: uniqueLabel(parsed.rows, "peer_id"),
-      remote_peer_id: uniqueLabel(parsed.rows, "remote_peer_id"),
-      avg_rtt_ms: average(parsed.rows, "rtt_ms"),
-      min_rtt_ms: minValue(parsed.rows, "rtt_ms"),
-      max_rtt_ms: maxValue(parsed.rows, "rtt_ms"),
-      avg_packet_loss_rate: average(parsed.rows, "packet_loss_rate"),
-      min_packet_loss_rate: minValue(parsed.rows, "packet_loss_rate"),
-      max_packet_loss_rate: maxValue(parsed.rows, "packet_loss_rate"),
-      avg_jitter_ms: average(parsed.rows, "jitter_ms"),
-      min_jitter_ms: minValue(parsed.rows, "jitter_ms"),
-      max_jitter_ms: maxValue(parsed.rows, "jitter_ms"),
-      avg_bitrate_kbps: average(parsed.rows, "bitrate_kbps"),
-      min_bitrate_kbps: minValue(parsed.rows, "bitrate_kbps"),
-      max_bitrate_kbps: maxValue(parsed.rows, "bitrate_kbps"),
-      avg_fps: average(parsed.rows, "fps"),
-      min_fps: minValue(parsed.rows, "fps"),
-      max_fps: maxValue(parsed.rows, "fps"),
-      rows: parsed.rows
+      ok: false,
+      missing: REQUIRED_CSV_FIELDS,
+      sample_count: 0,
+      rows: []
     };
   }
 
