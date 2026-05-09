@@ -10,7 +10,7 @@ Dashboard Service is not a general-purpose HTTP proxy.
 
 - Default Dashboard binding is `127.0.0.1:8081`.
 - Dashboard proxy requests must stay scoped to local trusted WebRTC origins.
-- The origin allowlist accepts full origins such as `https://localhost:8080` and host entries such as `localhost`.
+- The origin allowlist accepts exact origins such as `https://localhost:8080`; bare hostnames such as `localhost` are not wildcards.
 - Invalid or unallowed origins must return the standard error envelope.
 - The Dashboard page must degrade gracefully when WebRTC Service is unreachable.
 

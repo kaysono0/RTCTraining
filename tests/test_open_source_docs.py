@@ -53,6 +53,8 @@ def test_dashboard_doc_declares_proxy_safety_boundary():
     assert "Dashboard page only calls Dashboard Service" in body
     assert "origin allowlist" in body
     assert "not a general-purpose HTTP proxy" in body
+    assert "exact origins" in body
+    assert "bare hostnames" in body
 
 
 def test_csv_schema_documents_every_exported_field():
