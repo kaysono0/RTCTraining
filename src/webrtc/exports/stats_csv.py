@@ -1,50 +1,7 @@
 import csv
 import io
 
-
-CSV_FIELDS = [
-    "sample_index",
-    "timestamp",
-    "room_id",
-    "test_session_id",
-    "peer_id",
-    "remote_peer_id",
-    "connection_state",
-    "ice_connection_state",
-    "rtt_ms",
-    "packets_lost",
-    "packet_loss_rate",
-    "jitter_ms",
-    "bitrate_kbps",
-    "available_outgoing_bitrate_kbps",
-    "fps",
-    "frame_width",
-    "frame_height",
-    "codec",
-    "local_candidate_type",
-    "remote_candidate_type",
-    "candidate_pair_protocol",
-    "packets_sent",
-    "packets_received",
-    "bytes_sent",
-    "bytes_received",
-    "frames_sent",
-    "frames_received",
-    "frames_encoded",
-    "frames_decoded",
-    "frames_dropped",
-    "nack_enabled",
-    "nack_mode",
-    "nack_count",
-    "pli_count",
-    "fir_count",
-    "quality_limitation_reason",
-    "bitrate_mode",
-    "sender_max_bitrate_bps",
-    "abr_mode",
-    "abr_target_bitrate_bps",
-    "abr_decision",
-]
+from src.webrtc.domain.stats_schema import CSV_FIELDS
 
 
 def render_stats_csv(samples):

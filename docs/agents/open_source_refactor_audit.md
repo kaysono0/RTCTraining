@@ -17,6 +17,7 @@
 | Environment-backed settings | `src/webrtc/config.py`, covered by `tests/test_config.py`. |
 | Dashboard origin allowlist | `src/dashboard/origin_policy.py`, exact-origin matching, covered by `tests/test_dashboard_origin_policy.py`. |
 | Backend service boundaries | `StatsService`, `TestSessionService`, `DashboardSnapshotService` under `src/webrtc/services/`. |
+| Domain contracts | `src/webrtc/domain/stats_schema.py` and `src/webrtc/domain/errors.py`, covered by `tests/test_domain_contracts.py`. |
 | Stable CSV export boundary | `src/webrtc/exports/stats_csv.py`, compatibility wrapper in `src/webrtc/csv_export.py`. |
 | Named WebRTC route registry | `src/webrtc/api/route_registry.py`, covered by `tests/test_ui_routes.py`. |
 | Dashboard frontend modules | `static/dashboard/core/`, `static/dashboard/csv/`, `static/dashboard/live/`. |
