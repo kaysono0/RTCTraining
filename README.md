@@ -47,6 +47,15 @@ It does not replace unit tests or Playwright E2E tests.
 
 ```bash
 make test-unit
+make harness-smoke
 make test-e2e
 make test
 ```
+
+## Contributing
+
+Read `CONTRIBUTING.md` before opening a pull request.
+
+## Security
+
+Read `SECURITY.md` before exposing RTCTraining outside a trusted local network.

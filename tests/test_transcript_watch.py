@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -68,7 +69,7 @@ def test_watch_script_runs_directly(tmp_path):
 
     result = subprocess.run(
         [
-            ".venv/bin/python",
+            sys.executable,
             "scripts/watch_codex_transcript.py",
             str(transcript),
             "--quiet-seconds",
