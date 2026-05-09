@@ -20,7 +20,7 @@
 | Domain contracts | `src/webrtc/domain/stats_schema.py` and `src/webrtc/domain/errors.py`, covered by `tests/test_domain_contracts.py`. |
 | Stable CSV export boundary | `src/webrtc/exports/stats_csv.py`, compatibility wrapper in `src/webrtc/csv_export.py`. |
 | Named WebRTC route registry | `src/webrtc/api/route_registry.py`, covered by `tests/test_ui_routes.py`. |
-| Dashboard frontend modules | `static/dashboard/core/`, `static/dashboard/csv/`, `static/dashboard/live/`. |
+| Dashboard frontend modules | `static/dashboard/core/`, `static/dashboard/csv/parser.js`, `static/dashboard/csv/analysis.js`, `static/dashboard/csv/view.js`, `static/dashboard/live/`. |
 | WebRTC stats frontend modules | `static/webrtc/rtc/stats_normalizer.js`, `static/webrtc/ui/remote_stats_view.js`. |
 | Lightweight harness | `automation/harness/`, `make harness-smoke`, covered by `tests/test_harness.py`. |
 | ChangeLog updated | `CHANGELOG.md` has `Unreleased` entries for docs, CI, harness, settings, services, and frontend modules. |

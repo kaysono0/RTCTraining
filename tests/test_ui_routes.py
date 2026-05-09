@@ -289,15 +289,19 @@ async def test_dashboard_loads_csv_modules_before_main_script(dashboard_client):
 
     parser_path = next(path for path in script_paths if "csv/parser.js" in path)
     analysis_path = next(path for path in script_paths if "csv/analysis.js" in path)
+    view_path = next(path for path in script_paths if "csv/view.js" in path)
     dashboard_path = next(path for path in script_paths if "dashboard.js" in path)
 
     assert script_paths.index(parser_path) < script_paths.index(dashboard_path)
     assert script_paths.index(analysis_path) < script_paths.index(dashboard_path)
+    assert script_paths.index(view_path) < script_paths.index(dashboard_path)
 
     parser_response = await dashboard_client.get(parser_path)
     parser_body = await parser_response.text()
     analysis_response = await dashboard_client.get(analysis_path)
     analysis_body = await analysis_response.text()
+    view_response = await dashboard_client.get(view_path)
+    view_body = await view_response.text()
 
     assert parser_response.status == 200
     assert "RTCTrainingDashboardCsvParser" in parser_body
@@ -305,6 +309,9 @@ async def test_dashboard_loads_csv_modules_before_main_script(dashboard_client):
     assert analysis_response.status == 200
     assert "RTCTrainingDashboardCsvAnalysis" in analysis_body
     assert "summarizeCsvFile" in analysis_body
+    assert view_response.status == 200
+    assert "RTCTrainingDashboardCsvView" in view_body
+    assert "rangeCell" in view_body
 
 
 @pytest.mark.asyncio

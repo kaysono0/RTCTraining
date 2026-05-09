@@ -21,3 +21,4 @@
 - Added `DashboardSnapshotService` for Dashboard snapshot aggregation.
 - Tightened Dashboard origin policy to exact origins instead of hostname wildcards.
 - Added shared domain contracts for stats schema and public error codes.
+- Added a Dashboard CSV view helper module.

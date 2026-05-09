@@ -40,6 +40,7 @@
   const dom = window.RTCTrainingDashboardDom;
   const statsView = window.RTCTrainingDashboardStatsView;
   const csvAnalysis = window.RTCTrainingDashboardCsvAnalysis;
+  const csvView = window.RTCTrainingDashboardCsvView;
   const livePresenter = window.RTCTrainingDashboardLivePresenter;
 
   function queryParam(name) {
@@ -240,6 +241,9 @@
   }
 
   function bestBy(files, field, direction) {
+    if (csvView && csvView.bestBy) {
+      return csvView.bestBy(files, field, direction);
+    }
     const valid = files.filter((file) => file.ok && file[field] !== null && file[field] !== undefined);
     if (!valid.length) {
       return null;
@@ -255,6 +259,9 @@
   }
 
   function rangeCell(file, minField, avgField, maxField, suffix) {
+    if (csvView && csvView.rangeCell) {
+      return csvView.rangeCell(file, minField, avgField, maxField, suffix);
+    }
     const minVal = file[minField];
     const avgVal = file[avgField];
     const maxVal = file[maxField];
