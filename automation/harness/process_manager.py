@@ -24,10 +24,11 @@ class ManagedProcess:
         return self.process.stderr.read()[-limit:]
 
 
-def start_python_module(name, module, *args, python_executable=None):
+def start_python_module(name, module, *args, python_executable=None, env=None):
     command = [python_executable or sys.executable, "-m", module, *args]
     process = subprocess.Popen(
         command,
+        env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,

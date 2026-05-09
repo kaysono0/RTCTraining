@@ -46,6 +46,10 @@ The harness starts WebRTC Service and Dashboard Service, checks both pages,
 verifies JSON API envelopes, checks Dashboard proxy access, verifies CSV export
 headers, and shuts the services down.
 
+By default it uses ephemeral local ports to avoid collisions with manually
+running services. Pass `--webrtc-port` and `--dashboard-port` to
+`automation.harness.smoke` when fixed ports are needed.
+
 It does not replace unit tests or Playwright E2E tests.
 
 ## Testing

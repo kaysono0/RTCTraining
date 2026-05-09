@@ -1,5 +1,6 @@
 import contextlib
 import json
+import os
 import re
 import socket
 import ssl
@@ -40,10 +41,11 @@ def wait_for_url(url, *, ignore_tls=False, timeout=10):
 
 
 @contextlib.contextmanager
-def managed_process(command):
+def managed_process(command, *, env=None):
     process = subprocess.Popen(
         command,
         cwd=PROJECT_ROOT,
+        env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -85,8 +87,11 @@ def webrtc_https_server():
 
 
 @pytest.fixture
-def dashboard_server():
+def dashboard_server(webrtc_https_server):
     port = free_port()
+    env = os.environ.copy()
+    env["RTC_DASHBOARD_ORIGIN_ALLOWLIST"] = webrtc_https_server
+    env["RTC_LOCAL_WEBRTC_ORIGIN"] = webrtc_https_server
     command = [
         sys.executable,
         "-m",
@@ -97,7 +102,7 @@ def dashboard_server():
         "--port",
         str(port),
     ]
-    with managed_process(command) as process:
+    with managed_process(command, env=env) as process:
         base_url = f"http://127.0.0.1:{port}"
         wait_for_url(f"{base_url}/")
         if process.poll() is not None:
@@ -1235,7 +1240,7 @@ def test_dashboard_live_presenter_formats_peer_pairs_and_newest_sample(
     )
 
     assert result["pair"] == "Alice (peer-alpha-1...) -> Bob (peer-beta-12...)"
-    assert result["missing"] == "Alice (peer-alpha-1...) -> peer-missing-..."
+    assert result["missing"] == "Alice (peer-alpha-1...) -> peer-missing..."
     assert result["newestPeer"] == "newer"
 
 

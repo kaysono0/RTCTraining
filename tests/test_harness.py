@@ -10,7 +10,7 @@ from automation.harness.http_checks import (
     check_text_contains,
 )
 from automation.harness.process_manager import ManagedProcess, start_python_module
-from automation.harness.smoke import build_dashboard_proxy_url, connect_host
+from automation.harness.smoke import build_dashboard_proxy_url, connect_host, resolve_port
 
 
 def test_managed_process_terminates_child_process():
@@ -138,6 +138,31 @@ def test_start_python_module_uses_requested_python(monkeypatch):
     assert captured["kwargs"]["text"] is True
 
 
+def test_start_python_module_passes_requested_environment(monkeypatch):
+    captured = {}
+
+    class FakeProcess:
+        stdout = None
+        stderr = None
+
+        def poll(self):
+            return 0
+
+    def fake_popen(command, **kwargs):
+        captured["kwargs"] = kwargs
+        return FakeProcess()
+
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+
+    start_python_module(
+        "fake",
+        "example.module",
+        env={"RTC_DASHBOARD_ORIGIN_ALLOWLIST": "https://127.0.0.1:18080"},
+    )
+
+    assert captured["kwargs"]["env"]["RTC_DASHBOARD_ORIGIN_ALLOWLIST"] == "https://127.0.0.1:18080"
+
+
 def test_dashboard_proxy_url_uses_encoded_origin_and_requested_dashboard_host():
     dashboard_origin = f"http://{connect_host('localhost')}:18081"
     url = build_dashboard_proxy_url(
@@ -155,3 +180,10 @@ def test_dashboard_proxy_url_uses_encoded_origin_and_requested_dashboard_host():
 def test_connect_host_rewrites_wildcard_bind_address_for_local_checks():
     assert connect_host("0.0.0.0") == "127.0.0.1"
     assert connect_host("localhost") == "localhost"
+
+
+def test_resolve_port_zero_selects_ephemeral_local_port():
+    port = resolve_port(0)
+
+    assert isinstance(port, int)
+    assert port > 0

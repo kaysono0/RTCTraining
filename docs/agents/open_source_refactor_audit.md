@@ -23,28 +23,22 @@
 | Named WebRTC route registry | `src/webrtc/api/route_registry.py`, covered by `tests/test_ui_routes.py`. |
 | Dashboard frontend modules | `static/dashboard/core/`, `static/dashboard/csv/parser.js`, `static/dashboard/csv/analysis.js`, `static/dashboard/csv/view.js`, `static/dashboard/live/`. |
 | WebRTC stats frontend modules | `static/webrtc/rtc/stats_normalizer.js`, `static/webrtc/ui/remote_stats_view.js`. |
-| Lightweight harness | `automation/harness/`, `make harness-smoke`, covered by `tests/test_harness.py`. |
+| Lightweight harness | `automation/harness/`, `make harness-smoke`, covered by `tests/test_harness.py`; harness uses ephemeral local ports by default and injects Dashboard exact-origin allowlist. |
 | ChangeLog updated | `CHANGELOG.md` has `Unreleased` entries for docs, CI, harness, settings, services, and frontend modules. |
-| Unit verification | `make test-unit PYTHON=/Users/junsen/workspace/RTCTraining/.venv/bin/python` passed before exact-origin hardening with `163 passed in 2.62s`. After hardening, pure origin/config/docs checks pass; full unit rerun is blocked when the sandbox rejects aiohttp local port binding. |
-| Workspace hygiene | `git status --short` clean; `git diff --check origin/main..HEAD` passed; no tracked `__pycache__`, `.pyc`, `certs/`, `data/`, `.pytest_cache/`, `.venv`. |
+| Unit verification | `make test-unit PYTHON=.venv/bin/python` passed with `170 passed in 2.48s`. |
+| E2E verification | `make test-e2e PYTHON=.venv/bin/python` passed with `40 passed in 41.13s`. |
+| Harness verification | `make harness-smoke PYTHON=.venv/bin/python` passed. |
+| Full verification | `make test PYTHON=.venv/bin/python` passed with `210 passed in 43.26s`. |
+| Workspace hygiene | `git diff --check` passed; no tracked `__pycache__`, `.pyc`, `certs/`, `data/`, `.pytest_cache/`, `.venv`. |
 
-## Blocked Verification
+## Verification Commands
 
-The following gates are still required before this refactor can be considered complete:
+Latest passing gates:
 
 ```bash
-make harness-smoke PYTHON=/Users/junsen/workspace/RTCTraining/.venv/bin/python
-make test-e2e PYTHON=/Users/junsen/workspace/RTCTraining/.venv/bin/python
-make test PYTHON=/Users/junsen/workspace/RTCTraining/.venv/bin/python
+make test-unit PYTHON=.venv/bin/python
+make harness-smoke PYTHON=.venv/bin/python
+make test-e2e PYTHON=.venv/bin/python
+make test PYTHON=.venv/bin/python
+git diff --check
 ```
-
-Current sandbox status:
-
-- `make harness-smoke` fails because the sandbox rejects binding `127.0.0.1:8080` and `127.0.0.1:8081`.
-- aiohttp handler tests can also fail in this sandbox when temporary `127.0.0.1` bind is rejected.
-- `make test-e2e` requires local service ports and Chromium launch permissions.
-- Escalated execution was rejected by the automatic approval reviewer due current Codex usage limit.
-
-## Completion Rule
-
-Do not mark the refactor complete until the blocked verification commands above pass in an environment that permits local port binding and Chromium execution.

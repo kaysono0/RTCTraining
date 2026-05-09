@@ -6,6 +6,7 @@
 - Added `automation.harness` helpers for service process management and HTTP checks.
 - Added harness tests to `make test-unit`.
 - Added README quickstart and harness documentation.
+- Changed harness smoke to use ephemeral local ports by default and inject the exact Dashboard WebRTC origin allowlist.
 - Added contributor and security entrypoint docs.
 - Added a Phase 1 GitHub Actions workflow for unit tests.
 - Added architecture, API, error envelope, and CSV schema documentation.
