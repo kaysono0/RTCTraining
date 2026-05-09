@@ -52,6 +52,14 @@ make test-e2e
 make test
 ```
 
+## Architecture And API
+
+- Architecture: `docs/architecture.md`
+- Stats API: `docs/api/stats.md`
+- Dashboard API: `docs/api/dashboard.md`
+- Error envelope: `docs/api/errors.md`
+- CSV schema: `docs/api/csv_schema.md`
+
 ## Contributing
 
 Read `CONTRIBUTING.md` before opening a pull request.

@@ -8,3 +8,4 @@
 - Added README quickstart and harness documentation.
 - Added contributor and security entrypoint docs.
 - Added a Phase 1 GitHub Actions workflow for unit tests.
+- Added architecture, API, error envelope, and CSV schema documentation.
