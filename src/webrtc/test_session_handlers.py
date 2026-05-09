@@ -1,24 +1,23 @@
-import re
-from pathlib import Path
-
 from aiohttp import web
 
-from src.webrtc.csv_export import render_stats_csv
 from src.webrtc.response import error_payload, success_payload
+from src.webrtc.services.test_session_service import TestSessionService
 
 
 class TestSessionHandlers:
-    def __init__(self, test_session_store, stats_store, output_dir):
-        self.test_session_store = test_session_store
-        self.stats_store = stats_store
-        self.output_dir = Path(output_dir)
+    def __init__(self, test_session_store=None, stats_store=None, output_dir=None, service=None):
+        self.service = service or TestSessionService(
+            test_session_store,
+            stats_store,
+            output_dir,
+        )
 
     async def start(self, request):
         body = await self._json_body(request)
         missing = self._missing_field(body, ["room_id", "peer_id"])
         if missing:
             return self._bad_request(f"{missing} is required", {"field": missing})
-        session = self.test_session_store.start(
+        session = self.service.start(
             {
                 "room_id": body["room_id"],
                 "peer_id": body["peer_id"],
@@ -34,21 +33,11 @@ class TestSessionHandlers:
         test_session_id = body.get("test_session_id")
         if not test_session_id:
             return self._bad_request("test_session_id is required", {"field": "test_session_id"})
-        session = self.test_session_store.get(test_session_id)
+        session = self.service.get(test_session_id)
         if not session:
             return self._not_found(test_session_id)
 
-        samples = self.stats_store.history(
-            room_id=session["room_id"],
-            peer_id=session["peer_id"],
-            test_session_id=test_session_id,
-        )
-        csv_files = self._write_csv_files(session, samples)
-        finished = self.test_session_store.finish(
-            test_session_id,
-            sample_count=len(samples),
-            csv_files=csv_files,
-        )
+        finished = self.service.finish(test_session_id)
         return web.json_response(success_payload({"session": finished}))
 
     async def cancel(self, request):
@@ -56,63 +45,26 @@ class TestSessionHandlers:
         test_session_id = body.get("test_session_id")
         if not test_session_id:
             return self._bad_request("test_session_id is required", {"field": "test_session_id"})
-        if not self.test_session_store.get(test_session_id):
+        if not self.service.get(test_session_id):
             return self._not_found(test_session_id)
-        canceled = self.test_session_store.cancel(test_session_id)
+        canceled = self.service.cancel(test_session_id)
         return web.json_response(success_payload({"session": canceled}))
 
     async def list_sessions(self, request):
         room_id = request.query.get("room_id") or None
-        sessions = self.test_session_store.list_finished(room_id=room_id)
+        sessions = self.service.list_finished(room_id=room_id)
         return web.json_response(success_payload({"sessions": sessions}))
 
     async def download_csv(self, request):
         relative_path = request.match_info["file_path"]
-        target = (self.output_dir / relative_path).resolve()
-        root = self.output_dir.resolve()
-        if root not in target.parents and target != root:
-            return self._not_found(relative_path)
-        if not target.is_file():
+        try:
+            target = self.service.resolve_download(relative_path)
+        except KeyError:
             return self._not_found(relative_path)
         return web.FileResponse(
             target,
             headers={"Content-Disposition": f'attachment; filename="{target.name}"'},
         )
-
-    def _write_csv_files(self, session, samples):
-        grouped = {}
-        for sample in samples:
-            grouped.setdefault(sample["remote_peer_id"], []).append(sample)
-        if not grouped:
-            grouped["none"] = []
-
-        csv_files = []
-        for remote_peer_id in sorted(grouped):
-            pair_samples = grouped[remote_peer_id]
-            relative_path = Path(
-                self._safe_part(session["room_id"]),
-                self._safe_part(session["test_session_id"]),
-                self._safe_part(session["peer_id"]),
-                f"{self._safe_part(remote_peer_id)}.csv",
-            )
-            target = self.output_dir / relative_path
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(render_stats_csv(pair_samples), encoding="utf-8")
-            csv_files.append(
-                {
-                    "room_id": session["room_id"],
-                    "test_session_id": session["test_session_id"],
-                    "peer_id": session["peer_id"],
-                    "remote_peer_id": remote_peer_id,
-                    "path": str(target),
-                    "download_url": f"/stats/test/download/{relative_path.as_posix()}",
-                }
-            )
-        return csv_files
-
-    def _safe_part(self, value):
-        text = str(value or "none")
-        return re.sub(r"[^A-Za-z0-9._-]+", "_", text)
 
     async def _json_body(self, request):
         try:

@@ -12,3 +12,4 @@
 - Added environment-backed settings via `Settings.from_env()` and `.env.example`.
 - Added Dashboard origin allowlist enforcement for proxied WebRTC requests.
 - Added `StatsService` and `exports.stats_csv` boundaries while preserving the existing stats API.
+- Added `TestSessionService` and removed local absolute file paths from test session CSV metadata.
