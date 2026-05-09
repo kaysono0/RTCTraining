@@ -1,12 +1,12 @@
 from aiohttp import web
 
-from src.webrtc.csv_export import render_stats_csv
 from src.webrtc.response import error_payload, success_payload
+from src.webrtc.services.stats_service import StatsService
 
 
 class StatsHandlers:
-    def __init__(self, stats_store, snapshot_builder=None):
-        self.stats_store = stats_store
+    def __init__(self, stats_store=None, stats_service=None, snapshot_builder=None):
+        self.stats_service = stats_service or StatsService(stats_store)
         self.snapshot_builder = snapshot_builder
 
     async def post_stats(self, request):
@@ -20,7 +20,7 @@ class StatsHandlers:
         if not isinstance(body["metrics"], dict):
             return self._bad_request("metrics must be an object", {"field": "metrics"})
 
-        sample = self.stats_store.put_sample(
+        sample = self.stats_service.record_sample(
             {
                 "room_id": body["room_id"],
                 "peer_id": body["peer_id"],
@@ -37,7 +37,7 @@ class StatsHandlers:
         if not room_id:
             return self._bad_request("room_id is required", {"field": "room_id"})
 
-        samples = self.stats_store.latest(
+        samples = self.stats_service.latest(
             room_id=room_id,
             peer_id=request.query.get("peer_id"),
             remote_peer_id=request.query.get("remote_peer_id"),
@@ -50,7 +50,7 @@ class StatsHandlers:
         if not room_id:
             return self._bad_request("room_id is required", {"field": "room_id"})
 
-        samples = self.stats_store.history(
+        samples = self.stats_service.history(
             room_id=room_id,
             peer_id=request.query.get("peer_id"),
             remote_peer_id=request.query.get("remote_peer_id"),
@@ -64,7 +64,7 @@ class StatsHandlers:
             return self._bad_request("room_id is required", {"field": "room_id"})
 
         return web.json_response(
-            success_payload({"peers": self.stats_store.peers(room_id=room_id)})
+            success_payload({"peers": self.stats_service.peers(room_id=room_id)})
         )
 
     async def export_csv(self, request):
@@ -72,7 +72,7 @@ class StatsHandlers:
         if not room_id:
             return self._bad_request("room_id is required", {"field": "room_id"})
 
-        samples = self.stats_store.history(
+        csv_text = self.stats_service.export_csv(
             room_id=room_id,
             peer_id=request.query.get("peer_id"),
             remote_peer_id=request.query.get("remote_peer_id"),
@@ -80,7 +80,7 @@ class StatsHandlers:
         )
 
         return web.Response(
-            text=render_stats_csv(samples),
+            text=csv_text,
             content_type="text/csv",
             headers={"Content-Disposition": f'attachment; filename="{room_id}-stats.csv"'},
         )
@@ -91,7 +91,7 @@ class StatsHandlers:
         if not room_id:
             return self._bad_request("room_id is required", {"field": "room_id"})
 
-        removed = self.stats_store.clear(room_id=room_id)
+        removed = self.stats_service.clear(room_id=room_id)
         data = {"removed": removed}
         if self.snapshot_builder:
             data["snapshot"] = self.snapshot_builder(room_id)
