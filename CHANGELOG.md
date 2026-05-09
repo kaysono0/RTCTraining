@@ -18,3 +18,4 @@
 - Added standalone Dashboard live stats presenter helpers for peer labels and newest sample selection.
 - Added Dashboard core DOM/API client modules and a live stats view helper module.
 - Added WebRTC stats normalizer and remote stats view browser modules.
+- Added `DashboardSnapshotService` for Dashboard snapshot aggregation.
