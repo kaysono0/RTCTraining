@@ -15,3 +15,4 @@
 - Added `TestSessionService` and removed local absolute file paths from test session CSV metadata.
 - Added named WebRTC route registration via `src.webrtc.api.route_registry`.
 - Added standalone Dashboard CSV parser and analysis browser modules.
+- Added standalone Dashboard live stats presenter helpers for peer labels and newest sample selection.

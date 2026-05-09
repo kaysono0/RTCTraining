@@ -39,6 +39,7 @@
   };
   const csvParser = window.RTCTrainingDashboardCsvParser;
   const csvAnalysis = window.RTCTrainingDashboardCsvAnalysis;
+  const livePresenter = window.RTCTrainingDashboardLivePresenter;
 
   function queryParam(name) {
     return new URLSearchParams(window.location.search).get(name);
@@ -116,6 +117,9 @@
   }
 
   function newestSample(samples) {
+    if (livePresenter && livePresenter.newestSample) {
+      return livePresenter.newestSample(samples);
+    }
     return (samples || []).reduce((newest, sample) => {
       if (!newest) {
         return sample;
@@ -127,6 +131,9 @@
   }
 
   function shortPeerId(peerId) {
+    if (livePresenter && livePresenter.shortPeerId) {
+      return livePresenter.shortPeerId(peerId);
+    }
     if (!peerId) {
       return "";
     }
@@ -134,6 +141,9 @@
   }
 
   function peerLabel(peerId, labels) {
+    if (livePresenter && livePresenter.peerLabel) {
+      return livePresenter.peerLabel(peerId, labels);
+    }
     if (!peerId) {
       return "-";
     }
@@ -142,10 +152,16 @@
   }
 
   function peerPairLabel(peerId, remotePeerId, labels) {
+    if (livePresenter && livePresenter.peerPairLabel) {
+      return livePresenter.peerPairLabel(peerId, remotePeerId, labels);
+    }
     return `${peerLabel(peerId, labels)} -> ${peerLabel(remotePeerId, labels)}`;
   }
 
   function buildPeerLabelsFromMembers(members) {
+    if (livePresenter && livePresenter.buildPeerLabelsFromMembers) {
+      return livePresenter.buildPeerLabelsFromMembers(members);
+    }
     return (members || []).reduce((labels, member) => {
       labels[member.peer_id] = member.display_name;
       return labels;

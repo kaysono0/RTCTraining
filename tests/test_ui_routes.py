@@ -285,6 +285,26 @@ async def test_dashboard_loads_csv_modules_before_main_script(dashboard_client):
 
 
 @pytest.mark.asyncio
+async def test_dashboard_loads_live_presenter_before_main_script(dashboard_client):
+    response = await dashboard_client.get("/")
+    body = await response.text()
+    script_paths = re.findall(r'src="([^"]+)"', body)
+
+    presenter_path = next(path for path in script_paths if "live/presenter.js" in path)
+    dashboard_path = next(path for path in script_paths if "dashboard.js" in path)
+
+    assert script_paths.index(presenter_path) < script_paths.index(dashboard_path)
+
+    presenter_response = await dashboard_client.get(presenter_path)
+    presenter_body = await presenter_response.text()
+
+    assert presenter_response.status == 200
+    assert "RTCTrainingDashboardLivePresenter" in presenter_body
+    assert "peerPairLabel" in presenter_body
+    assert "newestSample" in presenter_body
+
+
+@pytest.mark.asyncio
 async def test_dashboard_proxy_handles_non_json_upstream_response(aiohttp_client, dashboard_client):
     async def plain_text_response(request):
         return web.Response(text="not json", content_type="text/plain")

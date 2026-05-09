@@ -1189,6 +1189,40 @@ def test_dashboard_csv_modules_parse_and_summarize_rows(
     assert result["summary"]["avg_rtt_ms"] == 25
 
 
+def test_dashboard_live_presenter_formats_peer_pairs_and_newest_sample(
+    browser_context,
+    dashboard_server,
+    webrtc_https_server,
+):
+    page = browser_context.new_page()
+
+    page.goto(f"{dashboard_server}/?webrtc_origin={webrtc_https_server}")
+    result = page.evaluate(
+        """
+        () => {
+          const presenter = window.RTCTrainingDashboardLivePresenter;
+          const labels = presenter.buildPeerLabelsFromMembers([
+            { peer_id: "peer-alpha-1234567890", display_name: "Alice" },
+            { peer_id: "peer-beta-1234567890", display_name: "Bob" }
+          ]);
+          const newest = presenter.newestSample([
+            { peer_id: "older", sample_index: 1 },
+            { peer_id: "newer", sample_index: 4 }
+          ]);
+          return {
+            pair: presenter.peerPairLabel("peer-alpha-1234567890", "peer-beta-1234567890", labels),
+            missing: presenter.peerPairLabel("peer-alpha-1234567890", "peer-missing-1234567890", labels),
+            newestPeer: newest.peer_id
+          };
+        }
+        """
+    )
+
+    assert result["pair"] == "Alice (peer-alpha-1...) -> Bob (peer-beta-12...)"
+    assert result["missing"] == "Alice (peer-alpha-1...) -> peer-missing-..."
+    assert result["newestPeer"] == "newer"
+
+
 def test_dashboard_reports_csv_field_validation_errors(
     browser_context,
     dashboard_server,
