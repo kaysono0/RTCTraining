@@ -20,7 +20,7 @@ def create_webrtc_app(
     store = room_store or RoomStore()
     stats = stats_store or StatsStore()
     test_sessions = test_session_store or TestSessionStore()
-    settings = Settings()
+    settings = Settings.from_env()
     test_session_output_dir = test_sessions_dir or settings.test_sessions_dir
     app = web.Application()
     handlers = MeshHandlers(store)

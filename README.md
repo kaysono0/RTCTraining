@@ -10,9 +10,14 @@ It runs a local WebRTC service, a local Dashboard service, collects browser
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
+cp .env.example .env
 make cert
 make harness-smoke
 ```
+
+The app reads `RTC_*` environment variables directly from the shell. The `.env`
+file is a reference for local configuration; load it with your shell or tooling
+when you want to override defaults.
 
 For manual browser testing, start each service in a separate terminal:
 

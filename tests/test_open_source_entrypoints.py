@@ -14,6 +14,7 @@ def test_open_source_entrypoint_files_exist():
         "CONTRIBUTING.md",
         "SECURITY.md",
         "CHANGELOG.md",
+        ".env.example",
         ".github/workflows/ci.yml",
     ]:
         assert (ROOT / path).is_file()
@@ -26,6 +27,7 @@ def test_readme_contains_quickstart_harness_and_project_scope():
         "RTCTraining",
         "Local/LAN WebRTC",
         "make cert",
+        ".env.example",
         "make harness-smoke",
         "make run-webrtc",
         "make run-dashboard",

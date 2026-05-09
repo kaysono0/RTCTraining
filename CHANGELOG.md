@@ -9,3 +9,5 @@
 - Added contributor and security entrypoint docs.
 - Added a Phase 1 GitHub Actions workflow for unit tests.
 - Added architecture, API, error envelope, and CSV schema documentation.
+- Added environment-backed settings via `Settings.from_env()` and `.env.example`.
+- Added Dashboard origin allowlist enforcement for proxied WebRTC requests.
