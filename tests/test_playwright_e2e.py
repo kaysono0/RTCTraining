@@ -373,6 +373,22 @@ def test_webrtc_page_applies_manual_sender_bitrate(browser_context, webrtc_https
     assert page.evaluate("window.__RTCTrainingTestHooks.getSenderMaxBitrateBps()") is None
 
 
+def test_webrtc_stats_normalizer_computes_loss_rate(browser_context, webrtc_https_server):
+    page = browser_context.new_page()
+
+    page.goto(webrtc_https_server)
+    result = page.evaluate(
+        """
+        () => window.RTCTrainingStatsNormalizer.finalizeMetrics({
+          packets_received: 90,
+          packets_lost: 10
+        })
+        """
+    )
+
+    assert result["packet_loss_rate"] == 10
+
+
 def test_webrtc_page_runs_simplified_abr_decisions(browser_context, webrtc_https_server):
     page = browser_context.new_page()
 

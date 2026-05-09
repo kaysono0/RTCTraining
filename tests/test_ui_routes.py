@@ -95,6 +95,28 @@ async def test_webrtc_homepage_loads_experiment_shell(webrtc_client):
 
 
 @pytest.mark.asyncio
+async def test_webrtc_page_loads_stats_modules_before_stats_script(webrtc_client):
+    response = await webrtc_client.get("/")
+    body = await response.text()
+    script_paths = re.findall(r'src="([^"]+)"', body)
+
+    normalizer_path = next(path for path in script_paths if "rtc/stats_normalizer.js" in path)
+    view_path = next(path for path in script_paths if "ui/remote_stats_view.js" in path)
+    stats_path = next(path for path in script_paths if "chat_real_stats.js" in path)
+
+    assert script_paths.index(normalizer_path) < script_paths.index(stats_path)
+    assert script_paths.index(view_path) < script_paths.index(stats_path)
+
+    normalizer_response = await webrtc_client.get(normalizer_path)
+    view_response = await webrtc_client.get(view_path)
+
+    assert normalizer_response.status == 200
+    assert "RTCTrainingStatsNormalizer" in await normalizer_response.text()
+    assert view_response.status == 200
+    assert "RTCTrainingRemoteStatsView" in await view_response.text()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("asset", "expected"),
     [

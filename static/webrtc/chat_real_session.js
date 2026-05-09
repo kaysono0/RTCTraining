@@ -94,6 +94,10 @@
     if (!stats) {
       return;
     }
+    if (window.RTCTrainingRemoteStatsView && window.RTCTrainingRemoteStatsView.renderRemoteStats) {
+      window.RTCTrainingRemoteStatsView.renderRemoteStats(stats, metrics);
+      return;
+    }
     stats.innerHTML = "";
     const rows = [
       ["Bitrate", `${formatNumber(metrics.bitrate_kbps, 1)} kbps`],

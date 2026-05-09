@@ -1,8 +1,12 @@
 (function () {
   const shared = window.RTCTrainingShared;
+  const normalizer = window.RTCTrainingStatsNormalizer;
   const STATS_INTERVAL_MS = 1000;
 
   function numberOrNull(value) {
+    if (normalizer && normalizer.numberOrNull) {
+      return normalizer.numberOrNull(value);
+    }
     return typeof value === "number" && Number.isFinite(value) ? value : null;
   }
 
@@ -157,14 +161,19 @@
       }
     });
 
-    const packetsExpected = metrics.packets_received + metrics.packets_lost;
-    if (packetsExpected > 0) {
-      metrics.packet_loss_rate = (metrics.packets_lost / packetsExpected) * 100;
+    const finalizedMetrics = normalizer && normalizer.finalizeMetrics
+      ? normalizer.finalizeMetrics(metrics)
+      : metrics;
+    if (!normalizer || !normalizer.finalizeMetrics) {
+      const packetsExpected = finalizedMetrics.packets_received + finalizedMetrics.packets_lost;
+      if (packetsExpected > 0) {
+        finalizedMetrics.packet_loss_rate = (finalizedMetrics.packets_lost / packetsExpected) * 100;
+      }
     }
 
-    metrics.bitrate_kbps = updateBitrate(
+    finalizedMetrics.bitrate_kbps = updateBitrate(
       remotePeerId,
-      metrics.bytes_sent + metrics.bytes_received
+      finalizedMetrics.bytes_sent + finalizedMetrics.bytes_received
     );
 
     if (
@@ -172,12 +181,12 @@
       window.RTCTrainingBitrate &&
       window.RTCTrainingBitrate.runAbrDecision
     ) {
-      const abrResult = await window.RTCTrainingBitrate.runAbrDecision(metrics);
-      metrics.bitrate_mode = shared.state.bitrateMode;
-      metrics.sender_max_bitrate_bps = shared.state.senderMaxBitrateBps;
-      metrics.abr_mode = shared.state.abrMode;
-      metrics.abr_target_bitrate_bps = abrResult.target_bitrate_bps;
-      metrics.abr_decision = abrResult.decision;
+      const abrResult = await window.RTCTrainingBitrate.runAbrDecision(finalizedMetrics);
+      finalizedMetrics.bitrate_mode = shared.state.bitrateMode;
+      finalizedMetrics.sender_max_bitrate_bps = shared.state.senderMaxBitrateBps;
+      finalizedMetrics.abr_mode = shared.state.abrMode;
+      finalizedMetrics.abr_target_bitrate_bps = abrResult.target_bitrate_bps;
+      finalizedMetrics.abr_decision = abrResult.decision;
     }
 
     return {
@@ -186,7 +195,7 @@
       remote_peer_id: remotePeerId,
       test_session_id: shared.state.testSessionId,
       timestamp: Date.now() / 1000,
-      metrics
+      metrics: finalizedMetrics
     };
   }
 
