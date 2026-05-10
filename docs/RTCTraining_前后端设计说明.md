@@ -11,6 +11,7 @@
 - `docs/architecture.md`：开源架构边界。
 - `docs/api/*.md`：稳定 API、错误 envelope、CSV schema。
 - `docs/agents/verification.md`：本地验证入口。
+- `docs/agents/playwright_e2e_ci_evaluation.md`：Playwright E2E 进入 CI 的成本评估。
 
 本文只描述当前源码已经实现或已经明确纳入近期计划的内容。以下能力不属于当前系统设计范围：
 
@@ -1294,7 +1295,7 @@ GitHub CI 当前运行两个阶段：
 
 优先级较高的下一步：
 
-1. 评估 Playwright E2E 进入 CI 的浏览器环境成本。
+1. 试运行 Playwright E2E 的非必选 CI job，观察稳定性和耗时。
 2. 增强 Live Stats 的 peer pair 选择和趋势观察。
 3. 扩展 NACK、bitrate、ABR 自动实验对比。
 4. 增强 Mesh 拓扑和每条边的 stats 展示。

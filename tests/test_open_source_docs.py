@@ -62,3 +62,21 @@ def test_csv_schema_documents_every_exported_field():
 
     for field in CSV_FIELDS:
         assert f"`{field}`" in body
+
+
+def test_playwright_ci_evaluation_documents_costs_and_decision():
+    body = read("docs/agents/playwright_e2e_ci_evaluation.md")
+
+    for text in [
+        "Playwright E2E CI Evaluation",
+        "python -m playwright install --with-deps chromium",
+        "make test-e2e PYTHON=python",
+        "browser install cost",
+        "self-signed HTTPS",
+        "fake media",
+        "Recommendation",
+        "do not add Playwright E2E as a required PR gate yet",
+        "https://playwright.dev/python/docs/ci",
+        "https://docs.github.com/en/actions/reference/runners/github-hosted-runners",
+    ]:
+        assert text in body

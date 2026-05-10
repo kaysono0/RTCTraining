@@ -10,6 +10,7 @@
 - Added contributor and security entrypoint docs.
 - Added a Phase 1 GitHub Actions workflow for unit tests.
 - Added a Phase 2 GitHub Actions harness smoke job after the unit job.
+- Added a Playwright E2E CI cost evaluation document.
 - Added architecture, API, error envelope, and CSV schema documentation.
 - Added environment-backed settings via `Settings.from_env()` and `.env.example`.
 - Added Dashboard origin allowlist enforcement for proxied WebRTC requests.
