@@ -1260,6 +1260,7 @@ def test_dashboard_filters_live_stats_by_peer_pair_and_metric(
             pair: document.querySelector("#livePeerPairSelect").value,
             metric: document.querySelector("#liveMetricSelect").value,
             latest: document.querySelector("#latestStatsPanel").textContent,
+            peerPairs: document.querySelector("#peerPairList").textContent,
             rows: document.querySelectorAll("#statsHistoryTable tbody tr").length,
             trend: document.querySelector("#liveTrendChart").textContent
           };
@@ -1271,6 +1272,7 @@ def test_dashboard_filters_live_stats_by_peer_pair_and_metric(
     assert result["metric"] == "bitrate_kbps"
     assert "Alice (peer-a) -> Bob (peer-b)" in result["latest"]
     assert "Charlie" not in result["latest"]
+    assert "Bitrate 200 kbps" in result["peerPairs"]
     assert result["rows"] == 2
     assert "Bitrate Trend" in result["trend"]
 

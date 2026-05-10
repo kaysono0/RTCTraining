@@ -721,15 +721,34 @@
     return `${localType || "?"}/${remoteType || "?"} ${protocol || ""}`.trim();
   }
 
-  function renderPeerPairs(peers, labels) {
+  function latestSampleForPeerPair(samples, peer) {
+    return newestSample((samples || []).filter((sample) => {
+      return sample.peer_id === peer.peer_id &&
+        sample.remote_peer_id === peer.remote_peer_id;
+    }));
+  }
+
+  function selectedMetricLabel(sample) {
+    const metricName = liveStatsState.metric;
+    const metricConfig = LIVE_METRICS[metricName] || LIVE_METRICS.rtt_ms;
+    const value = sample ? metric(sample, metricName) : null;
+    return `${metricConfig.label} ${formatMetric(value, metricConfig.suffix)}`;
+  }
+
+  function renderPeerPairs(peers, labels, latestSamples) {
     const list = document.getElementById("peerPairList");
     if (!list) {
       return;
     }
     list.innerHTML = "";
     for (const peer of peers || []) {
+      const latest = latestSampleForPeerPair(latestSamples, peer);
       const item = document.createElement("li");
-      item.textContent = `[${lastSampleLabel(peer)}] ${peerPairLabel(peer.peer_id, peer.remote_peer_id, labels)}`;
+      item.textContent = [
+        `[${lastSampleLabel(peer)}]`,
+        peerPairLabel(peer.peer_id, peer.remote_peer_id, labels),
+        selectedMetricLabel(latest)
+      ].join(" | ");
       list.appendChild(item);
     }
   }
@@ -1005,7 +1024,7 @@
     const visiblePeers = peers.filter((peer) => selectedPairMatches(peer.peer_id, peer.remote_peer_id));
     const visibleLatest = filteredSamples(snapshot.latest || []);
     const visibleHistory = filteredSamples(snapshot.history || []);
-    renderPeerPairs(visiblePeers, labels);
+    renderPeerPairs(visiblePeers, labels, snapshot.latest || []);
     renderLatestStats(visibleLatest, labels);
     renderHistoryRows(visibleHistory, labels);
     renderLiveTrend(visibleHistory);
