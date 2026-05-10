@@ -1210,6 +1210,30 @@ def test_dashboard_filters_live_stats_by_peer_pair_and_metric(
                 "nack_count": 6,
             },
         },
+        {
+            "sample_index": 4,
+            "timestamp": 1778140803,
+            "room_id": "filter-room",
+            "peer_id": "peer-c",
+            "remote_peer_id": "peer-d",
+            "metrics": {
+                "connection_state": "connected",
+                "ice_connection_state": "connected",
+                "rtt_ms": 80,
+                "packet_loss_rate": 6,
+                "packets_sent": 220,
+                "packets_received": 202,
+                "packets_lost": 8,
+                "jitter_ms": 7,
+                "bitrate_kbps": 840,
+                "fps": 29,
+                "frame_width": 640,
+                "frame_height": 360,
+                "codec": "video/VP8",
+                "nack_mode": "disabled",
+                "nack_count": 7,
+            },
+        },
     ]
     page.route(
         re.compile(r".*/api/webrtc/members\?.*"),
@@ -1239,7 +1263,7 @@ def test_dashboard_filters_live_stats_by_peer_pair_and_metric(
                         {"peer_id": "peer-a", "remote_peer_id": "peer-b"},
                         {"peer_id": "peer-c", "remote_peer_id": "peer-d"},
                     ],
-                    "latest": [samples[1], samples[2]],
+                    "latest": [samples[1], samples[3]],
                     "history": samples,
                 },
             },
@@ -1250,17 +1274,36 @@ def test_dashboard_filters_live_stats_by_peer_pair_and_metric(
     expect(page.locator("#livePeerPairSelect")).to_be_visible()
     expect(page.locator("#liveTrendChart svg")).to_be_visible(timeout=10000)
 
+    all_result = page.evaluate(
+        """
+        () => {
+          const hooks = window.__RTCTrainingDashboardTestHooks;
+          hooks.setLiveMetric("bitrate_kbps");
+          return {
+            pair: document.querySelector("#livePeerPairSelect").value,
+            lineCount: document.querySelectorAll("#liveTrendChart svg polyline").length,
+            trend: document.querySelector("#liveTrendChart").textContent
+          };
+        }
+        """
+    )
+
+    assert all_result["pair"] == "all"
+    assert all_result["lineCount"] == 2
+    assert "Alice (peer-a) -> Bob (peer-b)" in all_result["trend"]
+    assert "Charlie (peer-c) -> Dana (peer-d)" in all_result["trend"]
+
     result = page.evaluate(
         """
         () => {
           const hooks = window.__RTCTrainingDashboardTestHooks;
           hooks.setLivePeerPair("peer-a->peer-b");
-          hooks.setLiveMetric("bitrate_kbps");
           return {
             pair: document.querySelector("#livePeerPairSelect").value,
             metric: document.querySelector("#liveMetricSelect").value,
             latest: document.querySelector("#latestStatsPanel").textContent,
             peerPairs: document.querySelector("#peerPairList").textContent,
+            lineCount: document.querySelectorAll("#liveTrendChart svg polyline").length,
             rows: document.querySelectorAll("#statsHistoryTable tbody tr").length,
             trend: document.querySelector("#liveTrendChart").textContent
           };
@@ -1273,6 +1316,7 @@ def test_dashboard_filters_live_stats_by_peer_pair_and_metric(
     assert "Alice (peer-a) -> Bob (peer-b)" in result["latest"]
     assert "Charlie" not in result["latest"]
     assert "Bitrate 200 kbps" in result["peerPairs"]
+    assert result["lineCount"] == 1
     assert result["rows"] == 2
     assert "Bitrate Trend" in result["trend"]
 

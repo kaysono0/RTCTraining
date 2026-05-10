@@ -32,3 +32,4 @@
 - Added planned test session duration, actual duration metadata, and human-readable session CSV filenames.
 - Changed Live Stats Peer Pairs to show only the latest entry for each directed peer pair across test sessions.
 - Changed the Live Stats Metric selector to show the selected latest metric value in each Peer Pairs row.
+- Changed Live Trend to render one curve per peer pair when All pairs is selected.

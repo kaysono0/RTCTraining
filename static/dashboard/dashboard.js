@@ -890,7 +890,32 @@
       .filter((point) => Number.isFinite(point.y));
   }
 
-  function renderLiveTrend(samples) {
+  function liveTrendSeriesGroups(samples, labels) {
+    const groups = new Map();
+    for (const sample of samples || []) {
+      const key = samplePairKey(sample);
+      if (!groups.has(key)) {
+        groups.set(key, {
+          key,
+          label: peerPairLabel(sample.peer_id, sample.remote_peer_id, labels),
+          points: []
+        });
+      }
+      groups.get(key).points.push(sample);
+    }
+    return Array.from(groups.values())
+      .map((group) => {
+        return {
+          key: group.key,
+          label: group.label,
+          points: liveTrendSeries(group.points)
+        };
+      })
+      .filter((group) => group.points.length > 0)
+      .sort((left, right) => left.label.localeCompare(right.label));
+  }
+
+  function renderLiveTrend(samples, labels) {
     const chart = document.getElementById("liveTrendChart");
     if (!chart) {
       return;
@@ -898,7 +923,8 @@
     chart.innerHTML = "";
     const metricName = liveStatsState.metric;
     const metricConfig = LIVE_METRICS[metricName] || LIVE_METRICS.rtt_ms;
-    const points = liveTrendSeries(samples);
+    const groups = liveTrendSeriesGroups(samples, labels);
+    const points = groups.flatMap((group) => group.points);
     if (points.length < 1) {
       const empty = document.createElement("div");
       empty.className = "live-trend-empty";
@@ -963,21 +989,29 @@
     axis.setAttribute("stroke-width", "1.5");
     svg.appendChild(axis);
 
-    const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
-    polyline.setAttribute("points", points.map((point) => {
-      const x = padLeft + ((point.x - minX) / xRange) * plotWidth;
-      const y = padTop + plotHeight - ((point.y - minY) / yRange) * plotHeight;
-      return `${Number(x.toFixed(1))},${Number(y.toFixed(1))}`;
-    }).join(" "));
-    polyline.setAttribute("fill", "none");
-    polyline.setAttribute("stroke", "#23576b");
-    polyline.setAttribute("stroke-width", "2.5");
-    svg.appendChild(polyline);
+    const colors = ["#23576b", "#ad4e15", "#5f6f18", "#7a3f8f", "#2d6f50", "#9a3455"];
+    for (const [index, group] of groups.entries()) {
+      const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      polyline.setAttribute("points", group.points.map((point) => {
+        const x = padLeft + ((point.x - minX) / xRange) * plotWidth;
+        const y = padTop + plotHeight - ((point.y - minY) / yRange) * plotHeight;
+        return `${Number(x.toFixed(1))},${Number(y.toFixed(1))}`;
+      }).join(" "));
+      polyline.setAttribute("fill", "none");
+      polyline.setAttribute("stroke", colors[index % colors.length]);
+      polyline.setAttribute("stroke-width", "2.5");
+      polyline.setAttribute("data-peer-pair", group.key);
+      polyline.setAttribute("aria-label", group.label);
+      svg.appendChild(polyline);
+    }
 
     const caption = document.createElement("div");
     caption.className = "live-trend-empty";
-    caption.textContent = `${metricConfig.label}: ${points.length} samples${metricConfig.suffix ? ` (${metricConfig.suffix.trim()})` : ""}`;
-    chart.append(svg, caption);
+    caption.textContent = `${metricConfig.label}: ${points.length} samples / ${groups.length} pairs${metricConfig.suffix ? ` (${metricConfig.suffix.trim()})` : ""}`;
+    const legend = document.createElement("div");
+    legend.className = "live-trend-empty";
+    legend.textContent = groups.map((group) => group.label).join(" | ");
+    chart.append(svg, caption, legend);
   }
 
   function renderMeshTopology(snapshot, labels) {
@@ -1027,7 +1061,7 @@
     renderPeerPairs(visiblePeers, labels, snapshot.latest || []);
     renderLatestStats(visibleLatest, labels);
     renderHistoryRows(visibleHistory, labels);
-    renderLiveTrend(visibleHistory);
+    renderLiveTrend(visibleHistory, labels);
     renderMeshTopology(snapshot, labels);
     if (peers.length === 0) {
       setText("statsState", "service_online_but_no_stats");
