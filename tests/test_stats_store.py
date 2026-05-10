@@ -89,6 +89,31 @@ def test_peers_returns_observed_pairs_for_room():
     ]
 
 
+def test_peers_collapses_sessions_to_latest_observed_pair():
+    counter = iter([1000.0, 1001.0, 1002.0])
+    store = StatsStore(max_history_per_pair=5, now=lambda: next(counter))
+    store.put_sample(sample(test_session_id="session-old", metrics={"rtt_ms": 10.0}))
+    latest = store.put_sample(sample(test_session_id="session-new", metrics={"rtt_ms": 20.0}))
+    store.put_sample(
+        sample(
+            test_session_id="session-other",
+            remote_peer_id="peer-c",
+            metrics={"rtt_ms": 30.0},
+        )
+    )
+
+    peers = store.peers(room_id="room1")
+
+    assert peers[0] == {
+        "room_id": "room1",
+        "peer_id": "peer-a",
+        "remote_peer_id": "peer-b",
+        "last_sample_timestamp": latest["timestamp"],
+        "last_sample_index": latest["sample_index"],
+    }
+    assert len([peer for peer in peers if peer["remote_peer_id"] == "peer-b"]) == 1
+
+
 def test_clear_removes_room_scoped_samples_only():
     store = StatsStore(max_history_per_pair=5, now=lambda: 1000.0)
     store.put_sample(sample())
