@@ -548,6 +548,7 @@ def test_webrtc_test_session_renders_metadata_and_download_groups(browser_contex
         async () => {
           const session = await window.__RTCTrainingTestHooks.startTestSession({
             preset: "nack_on",
+            planned_duration_seconds: 45,
             metadata: { note: "baseline" },
             weak_network: { profile: "loss_5" }
           });
@@ -562,6 +563,8 @@ def test_webrtc_test_session_renders_metadata_and_download_groups(browser_contex
                 test_session_id: session.test_session_id,
                 peer_id: window.__RTCTrainingTestHooks.getClientId(),
                 remote_peer_id: "peer-b",
+                filename: "20260507-080000Z_Alice_peer-a_to_peer-b_nack_on_nack-enabled_abr-off_bitrate-auto_3s.csv",
+                display_name: "Alice peer-a -> peer-b | nack_on | nack enabled | abr off | auto | 3s | 20260507-080000Z",
                 download_url: "/stats/test/download/room1/s1/peer-a/peer-b.csv"
               }
             ]
@@ -576,8 +579,9 @@ def test_webrtc_test_session_renders_metadata_and_download_groups(browser_contex
     expect(page.locator("#testSessionDetails")).to_contain_text(result)
     expect(page.locator("#testSessionDetails")).to_contain_text("preset: nack_on")
     expect(page.locator("#testSessionDetails")).to_contain_text("weak: loss_5")
+    expect(page.locator("#testSessionDetails")).to_contain_text("planned: 45s")
     expect(page.locator("#testSessionDetails")).to_contain_text("samples: 4")
-    expect(page.locator("#testSessionDownloads")).to_contain_text("peer-b")
+    expect(page.locator("#testSessionDownloads")).to_contain_text("Alice peer-a -> peer-b")
 
 
 def test_webrtc_test_session_cancel_lifecycle(browser_context, webrtc_https_server):
@@ -1571,10 +1575,13 @@ def test_dashboard_loads_finished_session_csv_files(
                             "peer_id": "peer-a",
                             "preset": "abr_simple",
                             "weak_network": {"profile": "loss_5"},
+                            "duration_seconds": 72,
                             "sample_count": 2,
                             "csv_files": [
                                 {
                                     "remote_peer_id": "peer-b",
+                                    "display_name": "Alice peer-a -> peer-b | abr_simple | nack enabled | abr on | abr | 72s | 20260507-080000Z",
+                                    "filename": "20260507-080000Z_Alice_peer-a_to_peer-b_abr_simple_nack-enabled_abr-on_bitrate-abr_72s.csv",
                                     "download_url": "/stats/test/download/room1/s1/peer-a/peer-b.csv",
                                 }
                             ],
@@ -1600,12 +1607,13 @@ def test_dashboard_loads_finished_session_csv_files(
     result = page.evaluate("window.__RTCTrainingDashboardTestHooks.loadTestSessionCsvList()")
 
     assert result["sessions"][0]["test_session_id"] == "s1"
-    expect(page.locator("#testSessionCsvSelect")).to_contain_text("s1")
+    expect(page.locator("#testSessionCsvSelect")).to_contain_text("Alice peer-a -> peer-b")
+    expect(page.locator("#testSessionCsvSelect")).to_contain_text("72s")
     loaded = page.evaluate("window.__RTCTrainingDashboardTestHooks.loadSelectedSessionCsv()")
 
     assert loaded["ok"] is True
     expect(page.locator("#csvState")).to_have_text("csv_ready")
-    expect(page.locator("#csvValidationPanel")).to_contain_text("s1-peer-b.csv: ok")
+    expect(page.locator("#csvValidationPanel")).to_contain_text("20260507-080000Z_Alice_peer-a_to_peer-b")
 
 
 def test_two_webrtc_pages_connect_and_render_remote_video(

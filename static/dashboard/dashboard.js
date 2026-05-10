@@ -628,7 +628,9 @@
     return JSON.stringify({
       test_session_id: session.test_session_id,
       remote_peer_id: file.remote_peer_id,
-      download_url: file.download_url
+      download_url: file.download_url,
+      filename: file.filename,
+      display_name: file.display_name
     });
   }
 
@@ -641,10 +643,11 @@
         for (const file of session.csv_files || []) {
           const option = document.createElement("option");
           option.value = sessionCsvOptionValue(session, file);
-          option.textContent = [
+          option.textContent = file.display_name || [
             session.test_session_id,
             session.preset,
             file.remote_peer_id,
+            session.duration_seconds ? `${session.duration_seconds}s` : "",
             `samples=${session.sample_count}`
           ].filter(Boolean).join(" | ");
           select.appendChild(option);
@@ -689,7 +692,7 @@
     const selected = JSON.parse(select.value);
     const response = await fetch(dashboardCsvDownloadUrl(selected.download_url, origin));
     const text = await response.text();
-    const name = `${selected.test_session_id}-${selected.remote_peer_id}.csv`;
+    const name = selected.filename || `${selected.test_session_id}-${selected.remote_peer_id}.csv`;
     return analyzeCsvTexts([{ name, text }]);
   }
 

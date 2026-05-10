@@ -98,6 +98,39 @@ Query fields match `GET /stats`.
 
 CSV columns are documented in `docs/api/csv_schema.md`.
 
+## POST /stats/test/start
+
+Starts a test session. Required JSON fields:
+
+- `room_id`
+- `peer_id`
+
+Optional JSON fields:
+
+- `display_name`: human-readable local user name.
+- `preset`: experiment preset, defaults to `manual`.
+- `planned_duration_seconds`: planned recording length in seconds.
+- `metadata`: free-form object for notes.
+- `weak_network`: free-form object for network profile labels.
+
+Response data:
+
+- `session`: running session with `started_at`, `planned_duration_seconds`, and `duration_seconds: null`.
+
+## POST /stats/test/finish
+
+Finishes a test session and writes one CSV per `remote_peer_id`.
+
+Required JSON fields:
+
+- `test_session_id`
+
+Response data:
+
+- `session`: finished session with `duration_seconds`, `sample_count`, and `csv_files`.
+
+Each `csv_files` item includes `filename`, `display_name`, `relative_path`, and `download_url`. Filenames are human-readable and include start time, local display name, peer pair, preset, NACK mode, ABR mode, bitrate, and actual duration.
+
 ## POST /clear_stats
 
 Clears stats for a room.

@@ -85,6 +85,7 @@ async def test_webrtc_homepage_loads_experiment_shell(webrtc_client):
     assert 'id="abrModeState"' in body
     assert 'id="testPresetSelect"' in body
     assert 'id="testWeakNetworkInput"' in body
+    assert 'id="testSessionDurationInput"' in body
     assert 'id="testSessionNoteInput"' in body
     assert 'id="startTestSessionButton"' in body
     assert 'id="finishTestSessionButton"' in body
@@ -134,6 +135,8 @@ async def test_webrtc_static_asset_loads(webrtc_client, asset, expected):
 
     assert response.status == 200
     assert expected in body
+    if asset == "chat_real_test_session.js":
+        assert "planned_duration_seconds" in body
 
 
 @pytest.mark.asyncio

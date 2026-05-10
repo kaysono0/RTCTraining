@@ -342,12 +342,14 @@ Dashboard 代理接口支持 `origin` 参数：
 | 方法 | 说明 |
 | --- | --- |
 | `start(payload)` | 开始实验会话 |
-| `finish(test_session_id)` | 结束会话，按 remote peer 输出 CSV 文件 |
+| `finish(test_session_id)` | 结束会话，计算实际时长，按 remote peer 输出 CSV 文件 |
 | `cancel(test_session_id)` | 取消会话 |
 | `list_finished(room_id=...)` | 查询已完成会话 |
 | `resolve_download(relative_path)` | 校验并解析 CSV 下载路径 |
 
-CSV 下载响应只暴露相对路径和下载 URL，不把本机绝对路径返回给浏览器。
+CSV 下载响应只暴露相对路径、可读文件名、展示名和下载 URL，不把本机绝对路径返回给浏览器。
+
+实验会话开始时可记录 `display_name` 和 `planned_duration_seconds`。完成后返回 `duration_seconds`，CSV 文件名包含开始时间、用户名、peer pair、preset、NACK、ABR、bitrate 和实际时长，便于 Dashboard 下拉选择和多次实验对比。
 
 ### 4.8 `StatsHandlers`
 
@@ -1193,7 +1195,7 @@ peer-b -> peer-a
 
 `test_session_id` 可以为空。字段已经进入 `StatsStore` 分区 key 和查询过滤。运行实验会话时，前端会把当前 session id 写入 stats 上传样本。
 
-完成 test session 后，服务端按 `room_id / test_session_id / peer_id / remote_peer_id` 输出 CSV 文件，并通过下载接口提供给 Dashboard。
+完成 test session 后，服务端按 `room_id / test_session_id / peer_id / readable_filename.csv` 输出 CSV 文件，并通过下载接口提供给 Dashboard。文件名仍在 session 目录下隔离，避免不同实验互相覆盖。
 
 ## 12. CSV 导出设计
 
@@ -1224,6 +1226,14 @@ CSV 有两个使用场景：
 | 实验会话 | `TestSessionService.finish()` 按 remote peer 输出 CSV，并通过 Dashboard 加载 |
 
 Dashboard 已支持多 CSV 对比、字段校验、汇总表和趋势图。CSV schema 以 `docs/api/csv_schema.md` 和 `src/webrtc/exports/stats_csv.py` 为准。
+
+实验会话 CSV 文件名格式：
+
+```text
+YYYYMMDD-HHMMSSZ_<display_name>_<peer_id>_to_<remote_peer_id>_<preset>_nack-<mode>_abr-<mode>_bitrate-<value>_<duration>s.csv
+```
+
+`csv_files[].display_name` 用于 Dashboard 下拉展示，优先显示人名、peer pair、preset、参数配置、实际时长和开始时间。
 
 CSV Analysis 会自动生成实验对比结论：
 

@@ -19,11 +19,23 @@
   }
 
   function durationLabel(session) {
-    if (!session || !session.started_at) {
+    if (!session) {
+      return "-";
+    }
+    if (session.duration_seconds !== null && session.duration_seconds !== undefined) {
+      return `${session.duration_seconds}s`;
+    }
+    if (!session.started_at) {
       return "-";
     }
     const end = session.finished_at || Date.now() / 1000;
     return `${Math.max(0, Math.round(end - session.started_at))}s`;
+  }
+
+  function plannedDurationLabel(session) {
+    return session && session.planned_duration_seconds
+      ? `${session.planned_duration_seconds}s`
+      : "-";
   }
 
   function renderPresetSummary(presetName) {
@@ -54,6 +66,7 @@
           `id: ${session.test_session_id}`,
           `preset: ${session.preset}`,
           `weak: ${weakNetworkLabel(session)}`,
+          `planned: ${plannedDurationLabel(session)}`,
           `samples: ${session.sample_count || 0}`,
           `duration: ${durationLabel(session)}`
         ].join(" | ")
@@ -70,7 +83,7 @@
     files.forEach((file) => {
       const link = document.createElement("a");
       link.href = file.download_url;
-      link.textContent = `${file.room_id}/${file.test_session_id}/${file.peer_id}/${file.remote_peer_id}.csv`;
+      link.textContent = file.display_name || file.filename || `${file.room_id}/${file.test_session_id}/${file.peer_id}/${file.remote_peer_id}.csv`;
       link.setAttribute("download", "");
       downloads.appendChild(link);
     });
@@ -108,10 +121,15 @@
   function readUiOptions(overrides) {
     const presetSelect = document.getElementById("testPresetSelect");
     const weakNetworkInput = document.getElementById("testWeakNetworkInput");
+    const durationInput = document.getElementById("testSessionDurationInput");
     const noteInput = document.getElementById("testSessionNoteInput");
     const options = overrides || {};
+    const durationValue = options.planned_duration_seconds !== undefined
+      ? options.planned_duration_seconds
+      : (durationInput ? durationInput.value : "");
     return {
       preset: options.preset || (presetSelect ? presetSelect.value : "manual"),
+      planned_duration_seconds: normalizeDuration(durationValue),
       metadata: options.metadata || {
         note: noteInput ? noteInput.value : ""
       },
@@ -119,6 +137,14 @@
         profile: weakNetworkInput ? weakNetworkInput.value : ""
       }
     };
+  }
+
+  function normalizeDuration(value) {
+    if (value === null || value === undefined || value === "") {
+      return null;
+    }
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
   }
 
   async function postJson(path, body) {
@@ -146,7 +172,9 @@
     const session = await postJson("/stats/test/start", {
       room_id: shared.state.roomId,
       peer_id: shared.state.clientId,
+      display_name: shared.state.localDisplayName || "",
       preset: uiOptions.preset,
+      planned_duration_seconds: uiOptions.planned_duration_seconds,
       metadata: uiOptions.metadata,
       weak_network: uiOptions.weak_network
     });

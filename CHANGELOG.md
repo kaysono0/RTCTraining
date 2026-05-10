@@ -29,3 +29,4 @@
 - Added Live Stats peer-pair filtering and live metric trend rendering.
 - Added automatic CSV experiment comparisons for NACK, ABR, and bitrate configuration.
 - Expanded Mesh topology rows with per-edge jitter, FPS, NACK, candidate pair, and stable peer-pair identifiers.
+- Added planned test session duration, actual duration metadata, and human-readable session CSV filenames.
