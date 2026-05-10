@@ -181,6 +181,9 @@ async def test_dashboard_homepage_declares_complete_stats_surface(dashboard_clie
         "clearStatsButton",
         "statsState",
         "statsRefreshState",
+        "livePeerPairSelect",
+        "liveMetricSelect",
+        "liveTrendChart",
         "peerPairList",
         "latestStatsPanel",
         "statsHistoryTable",
@@ -191,6 +194,7 @@ async def test_dashboard_homepage_declares_complete_stats_surface(dashboard_clie
         "csvMetricSelect",
         "csvAnalyzeButton",
         "csvValidationPanel",
+        "experimentComparisonPanel",
         "csvComparisonTable",
         "csvTrendComparison",
     ]:
@@ -273,6 +277,8 @@ async def test_dashboard_static_assets_are_versioned_and_loadable(dashboard_clie
     assert "window.__RTCTrainingDashboardTestHooks" in js_body
     assert "loadLiveStats" in js_body
     assert "clearLiveStats" in js_body
+    assert "setLivePeerPair" in js_body
+    assert "setLiveMetric" in js_body
     assert "analyzeCsvTexts" in js_body
     assert "setCsvMetric" in js_body
     assert "loadTestSessionCsvList" in js_body

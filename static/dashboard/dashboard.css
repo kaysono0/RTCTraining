@@ -173,6 +173,12 @@ select {
   color: #53636b;
 }
 
+.live-filter-controls {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
 .dashboard-summary-strip {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -182,6 +188,7 @@ select {
 
 .dashboard-summary-strip article,
 .dashboard-latest-column,
+.dashboard-live-trend-section,
 .dashboard-history-section,
 .dashboard-csv-section,
 .status-panel {
@@ -220,6 +227,7 @@ select {
 }
 
 .dashboard-latest-column,
+.dashboard-live-trend-section,
 .dashboard-history-section,
 .dashboard-csv-section {
   min-width: 0;
@@ -256,6 +264,22 @@ select {
 .csv-trend-chart {
   min-height: 180px;
   margin: 12px 0;
+}
+
+.live-trend-chart {
+  min-height: 220px;
+}
+
+.live-trend-chart svg {
+  display: block;
+  width: 100%;
+  max-width: 860px;
+  height: auto;
+}
+
+.live-trend-empty {
+  color: #53636b;
+  font-size: 13px;
 }
 
 .csv-trend-chart svg {

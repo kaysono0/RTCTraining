@@ -99,6 +99,24 @@
         <div class="dashboard-side-column">
           <article class="status-panel">
             <h2>Peer Pairs</h2>
+            <div class="live-filter-controls">
+              <label>
+                Pair
+                <select id="livePeerPairSelect" aria-label="Live peer pair filter">
+                  <option value="all">All pairs</option>
+                </select>
+              </label>
+              <label>
+                Metric
+                <select id="liveMetricSelect" aria-label="Live trend metric">
+                  <option value="rtt_ms">RTT</option>
+                  <option value="packet_loss_rate">Loss Rate</option>
+                  <option value="jitter_ms">Jitter</option>
+                  <option value="bitrate_kbps">Bitrate</option>
+                  <option value="fps">FPS</option>
+                </select>
+              </label>
+            </div>
             <ul id="peerPairList"></ul>
           </article>
           <article class="status-panel">
@@ -110,6 +128,10 @@
           <h2>Latest Stats</h2>
           <dl id="latestStatsPanel"></dl>
         </article>
+      </section>
+      <section class="dashboard-live-trend-section">
+        <h2>Live Trend</h2>
+        <div id="liveTrendChart" class="live-trend-chart">trend_waiting</div>
       </section>
       <section class="dashboard-history-section">
         <h2>Stats History</h2>
@@ -157,6 +179,7 @@
         </div>
         <div id="testSessionCsvPanel" class="csv-validation-panel"></div>
         <div id="csvValidationPanel" class="csv-validation-panel"></div>
+        <div id="experimentComparisonPanel" class="csv-validation-panel"></div>
         <div id="csvTrendChart" class="csv-trend-chart"></div>
         <div class="dashboard-table-scroll">
           <table id="csvComparisonTable">

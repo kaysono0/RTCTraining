@@ -1127,6 +1127,150 @@ def test_dashboard_latest_stats_uses_newest_sample_across_peer_pairs(
     expect(page.locator("#nackSummary")).to_have_text("NACK: disabled / 6")
 
 
+def test_dashboard_filters_live_stats_by_peer_pair_and_metric(
+    browser_context,
+    dashboard_server,
+    webrtc_https_server,
+):
+    page = browser_context.new_page()
+    samples = [
+        {
+            "sample_index": 1,
+            "timestamp": 1778140800,
+            "room_id": "filter-room",
+            "peer_id": "peer-a",
+            "remote_peer_id": "peer-b",
+            "metrics": {
+                "connection_state": "connected",
+                "ice_connection_state": "connected",
+                "rtt_ms": 10,
+                "packet_loss_rate": 0,
+                "packets_sent": 100,
+                "packets_received": 100,
+                "packets_lost": 0,
+                "jitter_ms": 1,
+                "bitrate_kbps": 100,
+                "fps": 24,
+                "frame_width": 320,
+                "frame_height": 180,
+                "codec": "video/VP8",
+                "nack_mode": "enabled",
+                "nack_count": 1,
+            },
+        },
+        {
+            "sample_index": 2,
+            "timestamp": 1778140801,
+            "room_id": "filter-room",
+            "peer_id": "peer-a",
+            "remote_peer_id": "peer-b",
+            "metrics": {
+                "connection_state": "connected",
+                "ice_connection_state": "connected",
+                "rtt_ms": 20,
+                "packet_loss_rate": 1,
+                "packets_sent": 110,
+                "packets_received": 108,
+                "packets_lost": 1,
+                "jitter_ms": 2,
+                "bitrate_kbps": 200,
+                "fps": 25,
+                "frame_width": 320,
+                "frame_height": 180,
+                "codec": "video/VP8",
+                "nack_mode": "enabled",
+                "nack_count": 2,
+            },
+        },
+        {
+            "sample_index": 3,
+            "timestamp": 1778140802,
+            "room_id": "filter-room",
+            "peer_id": "peer-c",
+            "remote_peer_id": "peer-d",
+            "metrics": {
+                "connection_state": "connected",
+                "ice_connection_state": "connected",
+                "rtt_ms": 90,
+                "packet_loss_rate": 7,
+                "packets_sent": 210,
+                "packets_received": 190,
+                "packets_lost": 9,
+                "jitter_ms": 8,
+                "bitrate_kbps": 900,
+                "fps": 30,
+                "frame_width": 640,
+                "frame_height": 360,
+                "codec": "video/VP8",
+                "nack_mode": "disabled",
+                "nack_count": 6,
+            },
+        },
+    ]
+    page.route(
+        re.compile(r".*/api/webrtc/members\?.*"),
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            json={"ok": True, "data": {"rooms": {}}},
+        ),
+    )
+    page.route(
+        re.compile(r".*/api/webrtc/dashboard/snapshot\?.*"),
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            json={
+                "ok": True,
+                "data": {
+                    "room_id": "filter-room",
+                    "server_time": 1778140803,
+                    "members": [
+                        {"peer_id": "peer-a", "display_name": "Alice"},
+                        {"peer_id": "peer-b", "display_name": "Bob"},
+                        {"peer_id": "peer-c", "display_name": "Charlie"},
+                        {"peer_id": "peer-d", "display_name": "Dana"},
+                    ],
+                    "peers": [
+                        {"peer_id": "peer-a", "remote_peer_id": "peer-b"},
+                        {"peer_id": "peer-c", "remote_peer_id": "peer-d"},
+                    ],
+                    "latest": [samples[1], samples[2]],
+                    "history": samples,
+                },
+            },
+        ),
+    )
+
+    page.goto(f"{dashboard_server}/?webrtc_origin={webrtc_https_server}&room_id=filter-room")
+    expect(page.locator("#livePeerPairSelect")).to_be_visible()
+    expect(page.locator("#liveTrendChart svg")).to_be_visible(timeout=10000)
+
+    result = page.evaluate(
+        """
+        () => {
+          const hooks = window.__RTCTrainingDashboardTestHooks;
+          hooks.setLivePeerPair("peer-a->peer-b");
+          hooks.setLiveMetric("bitrate_kbps");
+          return {
+            pair: document.querySelector("#livePeerPairSelect").value,
+            metric: document.querySelector("#liveMetricSelect").value,
+            latest: document.querySelector("#latestStatsPanel").textContent,
+            rows: document.querySelectorAll("#statsHistoryTable tbody tr").length,
+            trend: document.querySelector("#liveTrendChart").textContent
+          };
+        }
+        """
+    )
+
+    assert result["pair"] == "peer-a->peer-b"
+    assert result["metric"] == "bitrate_kbps"
+    assert "Alice (peer-a) -> Bob (peer-b)" in result["latest"]
+    assert "Charlie" not in result["latest"]
+    assert result["rows"] == 2
+    assert "Bitrate Trend" in result["trend"]
+
+
 def test_dashboard_compares_multiple_csv_files(
     browser_context,
     dashboard_server,
@@ -1165,6 +1309,50 @@ def test_dashboard_compares_multiple_csv_files(
     expect(page.locator("#csvValidationPanel")).to_contain_text("nack_on.csv: ok")
     expect(page.locator("#csvComparisonTable tbody tr")).to_have_count(2)
     expect(page.locator("#csvTrendComparison")).to_contain_text("RTT best: nack_on.csv")
+
+
+def test_dashboard_generates_experiment_comparison_from_csv_files(
+    browser_context,
+    dashboard_server,
+    webrtc_https_server,
+):
+    page = browser_context.new_page()
+
+    page.goto(f"{dashboard_server}/?webrtc_origin={webrtc_https_server}")
+    result = page.evaluate(
+        """
+        window.__RTCTrainingDashboardTestHooks.analyzeCsvTexts([
+          {
+            name: "nack_on_abr_off.csv",
+            text: [
+              "sample_index,timestamp,room_id,test_session_id,peer_id,remote_peer_id,rtt_ms,packet_loss_rate,jitter_ms,bitrate_kbps,fps,nack_mode,abr_mode,sender_max_bitrate_bps",
+              "1,1000,room1,s1,peer-a,peer-b,20,1,5,700,30,enabled,off,800000",
+              "2,1001,room1,s1,peer-a,peer-b,22,1,5,720,30,enabled,off,800000"
+            ].join("\\n")
+          },
+          {
+            name: "nack_off_abr_off.csv",
+            text: [
+              "sample_index,timestamp,room_id,test_session_id,peer_id,remote_peer_id,rtt_ms,packet_loss_rate,jitter_ms,bitrate_kbps,fps,nack_mode,abr_mode,sender_max_bitrate_bps",
+              "1,1000,room1,s2,peer-a,peer-b,60,8,12,500,22,disabled,off,300000"
+            ].join("\\n")
+          },
+          {
+            name: "nack_on_abr_on.csv",
+            text: [
+              "sample_index,timestamp,room_id,test_session_id,peer_id,remote_peer_id,rtt_ms,packet_loss_rate,jitter_ms,bitrate_kbps,fps,nack_mode,abr_mode,sender_max_bitrate_bps",
+              "1,1000,room1,s3,peer-a,peer-b,24,2,6,950,29,enabled,on,1200000"
+            ].join("\\n")
+          }
+        ])
+        """
+    )
+
+    assert result["ok"] is True
+    panel = page.locator("#experimentComparisonPanel")
+    expect(panel).to_contain_text("NACK: enabled lower loss than disabled")
+    expect(panel).to_contain_text("ABR: on higher bitrate than off")
+    expect(panel).to_contain_text("Bitrate config: 1200 kbps highest configured target")
 
 
 def test_dashboard_csv_modules_parse_and_summarize_rows(
@@ -1557,6 +1745,11 @@ def test_dashboard_renders_three_peer_mesh_topology(
     expect(dashboard.locator("#meshTopology")).to_contain_text("connected")
     expect(dashboard.locator("#meshTopology")).to_contain_text("RTT")
     expect(dashboard.locator("#meshTopology")).to_contain_text("Bitrate")
+    expect(dashboard.locator("#meshTopology")).to_contain_text("Jitter")
+    expect(dashboard.locator("#meshTopology")).to_contain_text("FPS")
+    expect(dashboard.locator("#meshTopology")).to_contain_text("NACK")
+    first_edge_pair = dashboard.locator("#meshTopology li").nth(0).get_attribute("data-peer-pair")
+    assert first_edge_pair and "->" in first_edge_pair
 
 
 def test_connected_webrtc_pages_upload_stats_visible_to_dashboard(

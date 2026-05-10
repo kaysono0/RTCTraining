@@ -26,3 +26,6 @@
 - Added shared domain contracts for stats schema and public error codes.
 - Added a Dashboard CSV view helper module.
 - Added a Dashboard proxy client helper for upstream URL construction.
+- Added Live Stats peer-pair filtering and live metric trend rendering.
+- Added automatic CSV experiment comparisons for NACK, ABR, and bitrate configuration.
+- Expanded Mesh topology rows with per-edge jitter, FPS, NACK, candidate pair, and stable peer-pair identifiers.
