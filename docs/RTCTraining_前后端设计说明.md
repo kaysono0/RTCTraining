@@ -1259,7 +1259,12 @@ make test-e2e
 make test
 ```
 
-GitHub CI 第一阶段只运行 `make test-unit`。`make harness-smoke` 和 `make test-e2e` 当前作为本地合并前验证。
+GitHub CI 当前运行两个阶段：
+
+1. `make test-unit`
+2. `make harness-smoke`
+
+`make test-e2e` 当前仍作为本地合并前验证，暂不进入 CI。
 
 ## 15. 当前限制
 
@@ -1273,7 +1278,7 @@ GitHub CI 第一阶段只运行 `make test-unit`。`make harness-smoke` 和 `mak
 | Dashboard proxy | 只允许 exact origin allowlist 中的 WebRTC origin |
 | Dashboard 图表 | CSV 趋势图已实现，Live Stats 仍以实时列表/表格为主 |
 | harness | 服务级 smoke，不替代 pytest 或 Playwright |
-| CI | 第一阶段只跑 unit，harness 和 E2E 暂不进 CI |
+| CI | 已跑 unit 和 harness smoke，E2E 暂不进 CI |
 
 ## 16. 后续设计方向
 
@@ -1289,8 +1294,7 @@ GitHub CI 第一阶段只运行 `make test-unit`。`make harness-smoke` 和 `mak
 
 优先级较高的下一步：
 
-1. 把稳定后的 harness 纳入 GitHub CI 第二阶段。
-2. 评估 Playwright E2E 进入 CI 的浏览器环境成本。
-3. 增强 Live Stats 的 peer pair 选择和趋势观察。
-4. 扩展 NACK、bitrate、ABR 自动实验对比。
-5. 增强 Mesh 拓扑和每条边的 stats 展示。
+1. 评估 Playwright E2E 进入 CI 的浏览器环境成本。
+2. 增强 Live Stats 的 peer pair 选择和趋势观察。
+3. 扩展 NACK、bitrate、ABR 自动实验对比。
+4. 增强 Mesh 拓扑和每条边的 stats 展示。
