@@ -9,6 +9,8 @@
 - Changed harness smoke to use ephemeral local ports by default and inject the exact Dashboard WebRTC origin allowlist.
 - Added contributor and security entrypoint docs.
 - Added a Phase 1 GitHub Actions workflow for unit tests.
+- Added a Phase 2 GitHub Actions harness smoke job after the unit job.
+- Added a Playwright E2E CI cost evaluation document.
 - Added architecture, API, error envelope, and CSV schema documentation.
 - Added environment-backed settings via `Settings.from_env()` and `.env.example`.
 - Added Dashboard origin allowlist enforcement for proxied WebRTC requests.
@@ -24,3 +26,10 @@
 - Added shared domain contracts for stats schema and public error codes.
 - Added a Dashboard CSV view helper module.
 - Added a Dashboard proxy client helper for upstream URL construction.
+- Added Live Stats peer-pair filtering and live metric trend rendering.
+- Added automatic CSV experiment comparisons for NACK, ABR, and bitrate configuration.
+- Expanded Mesh topology rows with per-edge jitter, FPS, NACK, candidate pair, and stable peer-pair identifiers.
+- Added planned test session duration, actual duration metadata, and human-readable session CSV filenames.
+- Changed Live Stats Peer Pairs to show only the latest entry for each directed peer pair across test sessions.
+- Changed the Live Stats Metric selector to show the selected latest metric value in each Peer Pairs row.
+- Changed Live Trend to render one curve per peer pair when All pairs is selected.

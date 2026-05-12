@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>RTCTraining</title>
-    <link rel="stylesheet" href="/static/webrtc/chat_real.css?v=20260508-sdp-parsed-timeline-toggle">
+    <link rel="stylesheet" href="/static/webrtc/chat_real.css?v=20260510-sdp-parsed-session-duration-readable-csv">
   </head>
   <body>
     <main class="app-shell">
@@ -101,6 +101,10 @@
             <input id="testWeakNetworkInput" value="none" placeholder="e.g. none, loss_5%, delay_100ms" aria-label="Weak network condition" title="记录测试时的弱网模拟条件，如 none / loss_5% / delay_100ms，便于后续对比分析">
           </label>
           <label>
+            <span>Duration</span>
+            <input id="testSessionDurationInput" type="number" min="1" step="1" value="60" aria-label="Planned test session duration seconds" title="计划录制时长，单位秒，仅用于记录和对比">
+          </label>
+          <label>
             <span>Note</span>
             <input id="testSessionNoteInput" placeholder="e.g. build version, environment, observations" aria-label="Test session note" title="测试备注，如构建版本、环境信息、观察到的现象等">
           </label>
@@ -131,7 +135,7 @@
     <script src="/static/webrtc/chat_real_shared.js?v=20260508-mobile-media-sdp-parsed-view"></script>
     <script src="/static/webrtc/chat_real_nack.js?v=20260507-nack-mode-manual-bitrate-mobile-media"></script>
     <script src="/static/webrtc/chat_real_bitrate.js?v=20260508-nack-mode-manual-bitrate-auto-abr-mobile-media"></script>
-    <script src="/static/webrtc/chat_real_test_session.js?v=20260508-test-session-presets-details"></script>
+    <script src="/static/webrtc/chat_real_test_session.js?v=20260510-test-session-duration-readable-csv"></script>
     <script src="/static/webrtc/rtc/stats_normalizer.js?v=20260509-stats-modules"></script>
     <script src="/static/webrtc/ui/remote_stats_view.js?v=20260509-stats-modules"></script>
     <script src="/static/webrtc/chat_real_session.js?v=20260508-mobile-media-sdp-parsed-view"></script>

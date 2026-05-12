@@ -8,7 +8,9 @@
     requestSeq: 0,
     clearing: false,
     snapshot: null,
-    snapshotAvailable: true
+    snapshotAvailable: true,
+    selectedPeerPair: "all",
+    metric: "rtt_ms"
   };
   const csvAnalysisState = {
     result: null,
@@ -36,6 +38,13 @@
     jitter_ms: { label: "Jitter", avgField: "avg_jitter_ms", suffix: " ms", direction: "min" },
     bitrate_kbps: { label: "Bitrate", avgField: "avg_bitrate_kbps", suffix: " kbps", direction: "max" },
     fps: { label: "FPS", avgField: "avg_fps", suffix: "", direction: "max" }
+  };
+  const LIVE_METRICS = {
+    rtt_ms: { label: "RTT", suffix: " ms" },
+    packet_loss_rate: { label: "Loss Rate", suffix: "%" },
+    jitter_ms: { label: "Jitter", suffix: " ms" },
+    bitrate_kbps: { label: "Bitrate", suffix: " kbps" },
+    fps: { label: "FPS", suffix: "" }
   };
   const dom = window.RTCTrainingDashboardDom;
   const statsView = window.RTCTrainingDashboardStatsView;
@@ -177,6 +186,19 @@
     return `${peerLabel(peerId, labels)} -> ${peerLabel(remotePeerId, labels)}`;
   }
 
+  function peerPairKey(peerId, remotePeerId) {
+    return `${peerId}->${remotePeerId}`;
+  }
+
+  function samplePairKey(sample) {
+    return peerPairKey(sample.peer_id, sample.remote_peer_id);
+  }
+
+  function selectedPairMatches(peerId, remotePeerId) {
+    return liveStatsState.selectedPeerPair === "all" ||
+      liveStatsState.selectedPeerPair === peerPairKey(peerId, remotePeerId);
+  }
+
   function buildPeerLabelsFromMembers(members) {
     if (livePresenter && livePresenter.buildPeerLabelsFromMembers) {
       return livePresenter.buildPeerLabelsFromMembers(members);
@@ -312,7 +334,91 @@
     if (trend) {
       renderCsvTrend(result);
     }
+    renderExperimentComparison(result);
     renderCsvTrendChart(result);
+  }
+
+  function rowsByField(files, field) {
+    const groups = {};
+    for (const file of files || []) {
+      if (!file.ok) {
+        continue;
+      }
+      for (const row of file.rows || []) {
+        const value = row[field];
+        if (!value) {
+          continue;
+        }
+        groups[value] = groups[value] || [];
+        groups[value].push(row);
+      }
+    }
+    return groups;
+  }
+
+  function averageRows(rows, field) {
+    const values = (rows || [])
+      .map((row) => numberFromRow(row, field))
+      .filter((value) => value !== null);
+    if (!values.length) {
+      return null;
+    }
+    return Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(2));
+  }
+
+  function renderExperimentComparison(result) {
+    const panel = document.getElementById("experimentComparisonPanel");
+    if (!panel) {
+      return;
+    }
+    panel.innerHTML = "";
+    const files = result.files || [];
+    const lines = [];
+    const nackGroups = rowsByField(files, "nack_mode");
+    if (nackGroups.enabled && nackGroups.disabled) {
+      const enabledLoss = averageRows(nackGroups.enabled, "packet_loss_rate");
+      const disabledLoss = averageRows(nackGroups.disabled, "packet_loss_rate");
+      if (enabledLoss !== null && disabledLoss !== null) {
+        lines.push(
+          enabledLoss <= disabledLoss
+            ? `NACK: enabled lower loss than disabled (${enabledLoss}% vs ${disabledLoss}%)`
+            : `NACK: disabled lower loss than enabled (${disabledLoss}% vs ${enabledLoss}%)`
+        );
+      }
+    }
+
+    const abrGroups = rowsByField(files, "abr_mode");
+    if (abrGroups.on && abrGroups.off) {
+      const onBitrate = averageRows(abrGroups.on, "bitrate_kbps");
+      const offBitrate = averageRows(abrGroups.off, "bitrate_kbps");
+      if (onBitrate !== null && offBitrate !== null) {
+        lines.push(
+          onBitrate >= offBitrate
+            ? `ABR: on higher bitrate than off (${onBitrate} kbps vs ${offBitrate} kbps)`
+            : `ABR: off higher bitrate than on (${offBitrate} kbps vs ${onBitrate} kbps)`
+        );
+      }
+    }
+
+    const bitrateRows = files
+      .filter((file) => file.ok)
+      .flatMap((file) => file.rows || [])
+      .map((row) => numberFromRow(row, "sender_max_bitrate_bps"))
+      .filter((value) => value !== null && value > 0);
+    if (bitrateRows.length) {
+      const maxKbps = Math.round(Math.max(...bitrateRows) / 1000);
+      lines.push(`Bitrate config: ${maxKbps} kbps highest configured target`);
+    }
+
+    if (!lines.length) {
+      panel.textContent = "experiment_comparison_waiting";
+      return;
+    }
+    for (const line of lines) {
+      const item = document.createElement("div");
+      item.textContent = line;
+      panel.appendChild(item);
+    }
   }
 
   function renderCsvTrend(result) {
@@ -522,7 +628,9 @@
     return JSON.stringify({
       test_session_id: session.test_session_id,
       remote_peer_id: file.remote_peer_id,
-      download_url: file.download_url
+      download_url: file.download_url,
+      filename: file.filename,
+      display_name: file.display_name
     });
   }
 
@@ -535,10 +643,11 @@
         for (const file of session.csv_files || []) {
           const option = document.createElement("option");
           option.value = sessionCsvOptionValue(session, file);
-          option.textContent = [
+          option.textContent = file.display_name || [
             session.test_session_id,
             session.preset,
             file.remote_peer_id,
+            session.duration_seconds ? `${session.duration_seconds}s` : "",
             `samples=${session.sample_count}`
           ].filter(Boolean).join(" | ");
           select.appendChild(option);
@@ -583,7 +692,7 @@
     const selected = JSON.parse(select.value);
     const response = await fetch(dashboardCsvDownloadUrl(selected.download_url, origin));
     const text = await response.text();
-    const name = `${selected.test_session_id}-${selected.remote_peer_id}.csv`;
+    const name = selected.filename || `${selected.test_session_id}-${selected.remote_peer_id}.csv`;
     return analyzeCsvTexts([{ name, text }]);
   }
 
@@ -612,17 +721,64 @@
     return `${localType || "?"}/${remoteType || "?"} ${protocol || ""}`.trim();
   }
 
-  function renderPeerPairs(peers, labels) {
+  function latestSampleForPeerPair(samples, peer) {
+    return newestSample((samples || []).filter((sample) => {
+      return sample.peer_id === peer.peer_id &&
+        sample.remote_peer_id === peer.remote_peer_id;
+    }));
+  }
+
+  function selectedMetricLabel(sample) {
+    const metricName = liveStatsState.metric;
+    const metricConfig = LIVE_METRICS[metricName] || LIVE_METRICS.rtt_ms;
+    const value = sample ? metric(sample, metricName) : null;
+    return `${metricConfig.label} ${formatMetric(value, metricConfig.suffix)}`;
+  }
+
+  function renderPeerPairs(peers, labels, latestSamples) {
     const list = document.getElementById("peerPairList");
     if (!list) {
       return;
     }
     list.innerHTML = "";
     for (const peer of peers || []) {
+      const latest = latestSampleForPeerPair(latestSamples, peer);
       const item = document.createElement("li");
-      item.textContent = `[${lastSampleLabel(peer)}] ${peerPairLabel(peer.peer_id, peer.remote_peer_id, labels)}`;
+      item.textContent = [
+        `[${lastSampleLabel(peer)}]`,
+        peerPairLabel(peer.peer_id, peer.remote_peer_id, labels),
+        selectedMetricLabel(latest)
+      ].join(" | ");
       list.appendChild(item);
     }
+  }
+
+  function renderLivePeerPairOptions(peers, labels) {
+    const select = document.getElementById("livePeerPairSelect");
+    if (!select) {
+      return;
+    }
+    const current = liveStatsState.selectedPeerPair;
+    select.innerHTML = "";
+    const allOption = document.createElement("option");
+    allOption.value = "all";
+    allOption.textContent = "All pairs";
+    select.appendChild(allOption);
+    for (const peer of peers || []) {
+      const option = document.createElement("option");
+      option.value = peerPairKey(peer.peer_id, peer.remote_peer_id);
+      option.textContent = peerPairLabel(peer.peer_id, peer.remote_peer_id, labels);
+      select.appendChild(option);
+    }
+    const values = Array.from(select.options).map((option) => option.value);
+    liveStatsState.selectedPeerPair = values.includes(current) ? current : "all";
+    select.value = liveStatsState.selectedPeerPair;
+  }
+
+  function filteredSamples(samples) {
+    return (samples || []).filter((sample) => {
+      return selectedPairMatches(sample.peer_id, sample.remote_peer_id);
+    });
   }
 
   function renderLatestStats(samples, labels) {
@@ -720,6 +876,144 @@
     }
   }
 
+  function liveTrendSeries(samples) {
+    const metricName = liveStatsState.metric;
+    return (samples || [])
+      .slice()
+      .sort((a, b) => (a.sample_index || a.timestamp || 0) - (b.sample_index || b.timestamp || 0))
+      .map((sample, index) => {
+        return {
+          x: sample.sample_index || index + 1,
+          y: Number(metric(sample, metricName))
+        };
+      })
+      .filter((point) => Number.isFinite(point.y));
+  }
+
+  function liveTrendSeriesGroups(samples, labels) {
+    const groups = new Map();
+    for (const sample of samples || []) {
+      const key = samplePairKey(sample);
+      if (!groups.has(key)) {
+        groups.set(key, {
+          key,
+          label: peerPairLabel(sample.peer_id, sample.remote_peer_id, labels),
+          points: []
+        });
+      }
+      groups.get(key).points.push(sample);
+    }
+    return Array.from(groups.values())
+      .map((group) => {
+        return {
+          key: group.key,
+          label: group.label,
+          points: liveTrendSeries(group.points)
+        };
+      })
+      .filter((group) => group.points.length > 0)
+      .sort((left, right) => left.label.localeCompare(right.label));
+  }
+
+  function renderLiveTrend(samples, labels) {
+    const chart = document.getElementById("liveTrendChart");
+    if (!chart) {
+      return;
+    }
+    chart.innerHTML = "";
+    const metricName = liveStatsState.metric;
+    const metricConfig = LIVE_METRICS[metricName] || LIVE_METRICS.rtt_ms;
+    const groups = liveTrendSeriesGroups(samples, labels);
+    const points = groups.flatMap((group) => group.points);
+    if (points.length < 1) {
+      const empty = document.createElement("div");
+      empty.className = "live-trend-empty";
+      empty.textContent = "trend_waiting";
+      chart.appendChild(empty);
+      return;
+    }
+
+    const width = 820;
+    const height = 240;
+    const padLeft = 60;
+    const padRight = 24;
+    const padTop = 34;
+    const padBottom = 38;
+    const plotWidth = width - padLeft - padRight;
+    const plotHeight = height - padTop - padBottom;
+    const minX = Math.min(...points.map((point) => point.x));
+    const maxX = Math.max(...points.map((point) => point.x));
+    const minY = Math.min(...points.map((point) => point.y));
+    const maxY = Math.max(...points.map((point) => point.y));
+    const xRange = maxX - minX || 1;
+    const yRange = maxY - minY || 1;
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    svg.setAttribute("role", "img");
+    svg.setAttribute("aria-label", `${metricConfig.label} live trend`);
+
+    const title = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    title.setAttribute("x", String(width / 2));
+    title.setAttribute("y", "20");
+    title.setAttribute("text-anchor", "middle");
+    title.setAttribute("fill", "#15202b");
+    title.setAttribute("font-size", "13");
+    title.setAttribute("font-weight", "bold");
+    title.textContent = `${metricConfig.label} Trend`;
+    svg.appendChild(title);
+
+    for (let index = 0; index <= 4; index += 1) {
+      const y = padTop + (plotHeight * index / 4);
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", String(padLeft));
+      line.setAttribute("y1", String(Number(y.toFixed(1))));
+      line.setAttribute("x2", String(padLeft + plotWidth));
+      line.setAttribute("y2", String(Number(y.toFixed(1))));
+      line.setAttribute("stroke", "#e5eaed");
+      svg.appendChild(line);
+      const yValue = minY + yRange * (1 - index / 4);
+      const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      label.setAttribute("x", String(padLeft - 6));
+      label.setAttribute("y", String(Number((y + 3).toFixed(1))));
+      label.setAttribute("text-anchor", "end");
+      label.setAttribute("fill", "#53636b");
+      label.setAttribute("font-size", "10");
+      label.textContent = String(Number(yValue.toFixed(1)));
+      svg.appendChild(label);
+    }
+
+    const axis = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    axis.setAttribute("d", `M ${padLeft} ${padTop} L ${padLeft} ${padTop + plotHeight} L ${padLeft + plotWidth} ${padTop + plotHeight}`);
+    axis.setAttribute("fill", "none");
+    axis.setAttribute("stroke", "#9aa8af");
+    axis.setAttribute("stroke-width", "1.5");
+    svg.appendChild(axis);
+
+    const colors = ["#23576b", "#ad4e15", "#5f6f18", "#7a3f8f", "#2d6f50", "#9a3455"];
+    for (const [index, group] of groups.entries()) {
+      const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      polyline.setAttribute("points", group.points.map((point) => {
+        const x = padLeft + ((point.x - minX) / xRange) * plotWidth;
+        const y = padTop + plotHeight - ((point.y - minY) / yRange) * plotHeight;
+        return `${Number(x.toFixed(1))},${Number(y.toFixed(1))}`;
+      }).join(" "));
+      polyline.setAttribute("fill", "none");
+      polyline.setAttribute("stroke", colors[index % colors.length]);
+      polyline.setAttribute("stroke-width", "2.5");
+      polyline.setAttribute("data-peer-pair", group.key);
+      polyline.setAttribute("aria-label", group.label);
+      svg.appendChild(polyline);
+    }
+
+    const caption = document.createElement("div");
+    caption.className = "live-trend-empty";
+    caption.textContent = `${metricConfig.label}: ${points.length} samples / ${groups.length} pairs${metricConfig.suffix ? ` (${metricConfig.suffix.trim()})` : ""}`;
+    const legend = document.createElement("div");
+    legend.className = "live-trend-empty";
+    legend.textContent = groups.map((group) => group.label).join(" | ");
+    chart.append(svg, caption, legend);
+  }
+
   function renderMeshTopology(snapshot, labels) {
     const state = document.getElementById("meshTopologyState");
     const list = document.getElementById("meshTopology");
@@ -740,12 +1034,17 @@
           candidate.remote_peer_id === peer.remote_peer_id;
       }) || {};
       const item = document.createElement("li");
+      item.dataset.peerPair = peerPairKey(peer.peer_id, peer.remote_peer_id);
       item.textContent = [
         peerPairLabel(peer.peer_id, peer.remote_peer_id, labels),
-        formatMetric(metric(sample, "connection_state"), "connected"),
+        `Connection ${formatMetric(metric(sample, "connection_state"), "")}/${formatMetric(metric(sample, "ice_connection_state"), "")}`,
         `RTT ${formatMetric(metric(sample, "rtt_ms"), " ms")}`,
         `Loss ${formatMetric(metric(sample, "packets_lost"), "")}`,
-        `Bitrate ${formatMetric(metric(sample, "bitrate_kbps"), " kbps")}`
+        `Jitter ${formatMetric(metric(sample, "jitter_ms"), " ms")}`,
+        `Bitrate ${formatMetric(metric(sample, "bitrate_kbps"), " kbps")}`,
+        `FPS ${formatMetric(metric(sample, "fps"), "")}`,
+        `NACK ${formatMetric(metric(sample, "nack_count"), "")}`,
+        `Candidate ${candidatePair(sample)}`
       ].join(" | ");
       list.appendChild(item);
     }
@@ -755,9 +1054,14 @@
   function renderSnapshot(snapshot) {
     const labels = buildPeerLabelsFromMembers(snapshot.members || []);
     const peers = snapshot.peers || [];
-    renderPeerPairs(peers, labels);
-    renderLatestStats(snapshot.latest || [], labels);
-    renderHistoryRows(snapshot.history || [], labels);
+    renderLivePeerPairOptions(peers, labels);
+    const visiblePeers = peers.filter((peer) => selectedPairMatches(peer.peer_id, peer.remote_peer_id));
+    const visibleLatest = filteredSamples(snapshot.latest || []);
+    const visibleHistory = filteredSamples(snapshot.history || []);
+    renderPeerPairs(visiblePeers, labels, snapshot.latest || []);
+    renderLatestStats(visibleLatest, labels);
+    renderHistoryRows(visibleHistory, labels);
+    renderLiveTrend(visibleHistory, labels);
     renderMeshTopology(snapshot, labels);
     if (peers.length === 0) {
       setText("statsState", "service_online_but_no_stats");
@@ -947,6 +1251,30 @@
     }
   }
 
+  function setLivePeerPair(pairKey) {
+    liveStatsState.selectedPeerPair = pairKey || "all";
+    const select = document.getElementById("livePeerPairSelect");
+    if (select && select.value !== liveStatsState.selectedPeerPair) {
+      select.value = liveStatsState.selectedPeerPair;
+    }
+    if (liveStatsState.snapshot) {
+      renderSnapshot(liveStatsState.snapshot);
+    }
+    return liveStatsState.selectedPeerPair;
+  }
+
+  function setLiveMetric(metricName) {
+    liveStatsState.metric = LIVE_METRICS[metricName] ? metricName : "rtt_ms";
+    const select = document.getElementById("liveMetricSelect");
+    if (select && select.value !== liveStatsState.metric) {
+      select.value = liveStatsState.metric;
+    }
+    if (liveStatsState.snapshot) {
+      renderSnapshot(liveStatsState.snapshot);
+    }
+    return liveStatsState.metric;
+  }
+
   function bootstrapDashboard() {
     if (window.__RTCTrainingDashboardTestHooks) {
       return;
@@ -998,6 +1326,18 @@
         setCsvMetric(event.target.value);
       });
     }
+    const livePeerPairSelect = document.getElementById("livePeerPairSelect");
+    if (livePeerPairSelect) {
+      livePeerPairSelect.addEventListener("change", (event) => {
+        setLivePeerPair(event.target.value);
+      });
+    }
+    const liveMetricSelect = document.getElementById("liveMetricSelect");
+    if (liveMetricSelect) {
+      liveMetricSelect.addEventListener("change", (event) => {
+        setLiveMetric(event.target.value);
+      });
+    }
 
     window.__RTCTrainingDashboardTestHooks = {
       checkService,
@@ -1006,6 +1346,8 @@
       analyzeCsvTexts,
       analyzeSelectedCsvFiles,
       setCsvMetric,
+      setLivePeerPair,
+      setLiveMetric,
       loadTestSessionCsvList,
       loadSelectedSessionCsv,
       getServiceState() {

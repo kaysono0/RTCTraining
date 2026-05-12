@@ -9,7 +9,9 @@ def test_start_finish_and_cancel_test_sessions():
         {
             "room_id": "room1",
             "peer_id": "peer-a",
+            "display_name": "Alice",
             "preset": "nack_on",
+            "planned_duration_seconds": 60,
             "metadata": {"note": "baseline"},
             "weak_network": {"profile": "none"},
         }
@@ -19,16 +21,20 @@ def test_start_finish_and_cancel_test_sessions():
     assert session["status"] == "running"
     assert session["room_id"] == "room1"
     assert session["peer_id"] == "peer-a"
+    assert session["display_name"] == "Alice"
     assert session["preset"] == "nack_on"
+    assert session["planned_duration_seconds"] == 60
     assert session["metadata"] == {"note": "baseline"}
     assert session["weak_network"] == {"profile": "none"}
     assert session["started_at"] == 1000.0
     assert session["finished_at"] is None
+    assert session["duration_seconds"] is None
     assert session["sample_count"] == 0
 
     finished = store.finish("session-fixed", sample_count=12)
     assert finished["status"] == "finished"
     assert finished["finished_at"] == 1005.0
+    assert finished["duration_seconds"] == 5
     assert finished["sample_count"] == 12
 
     canceled = store.cancel("session-fixed")
@@ -109,6 +115,8 @@ def test_start_with_minimal_payload():
     store = TestSessionStore(id_factory=lambda: "minimal")
     session = store.start({"room_id": "room1", "peer_id": "peer-a"})
     assert session["preset"] == "manual"
+    assert session["display_name"] == ""
+    assert session["planned_duration_seconds"] is None
     assert session["metadata"] == {}
     assert session["weak_network"] == {}
     assert session["status"] == "running"

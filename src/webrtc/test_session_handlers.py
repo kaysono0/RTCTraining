@@ -21,7 +21,9 @@ class TestSessionHandlers:
             {
                 "room_id": body["room_id"],
                 "peer_id": body["peer_id"],
+                "display_name": body.get("display_name") or "",
                 "preset": body.get("preset"),
+                "planned_duration_seconds": self._optional_int(body.get("planned_duration_seconds")),
                 "metadata": body.get("metadata") if isinstance(body.get("metadata"), dict) else {},
                 "weak_network": body.get("weak_network") if isinstance(body.get("weak_network"), dict) else {},
             }
@@ -78,6 +80,15 @@ class TestSessionHandlers:
             if field not in body or body[field] in (None, ""):
                 return field
         return None
+
+    def _optional_int(self, value):
+        if value in (None, ""):
+            return None
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            return None
+        return parsed if parsed > 0 else None
 
     def _bad_request(self, message, details):
         return web.json_response(

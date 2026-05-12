@@ -60,10 +60,10 @@ def test_security_doc_warns_against_public_exposure():
     assert "origin allowlist" in body
 
 
-def test_ci_runs_unit_tests_only_for_phase_1():
+def test_ci_runs_unit_and_harness_smoke_without_playwright():
     body = read(".github/workflows/ci.yml")
 
     assert "make test-unit PYTHON=python" in body
-    assert "make harness-smoke" not in body
+    assert "make harness-smoke PYTHON=python" in body
     assert "make test-e2e" not in body
     assert "playwright install" not in body

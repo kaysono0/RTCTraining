@@ -85,6 +85,7 @@ async def test_webrtc_homepage_loads_experiment_shell(webrtc_client):
     assert 'id="abrModeState"' in body
     assert 'id="testPresetSelect"' in body
     assert 'id="testWeakNetworkInput"' in body
+    assert 'id="testSessionDurationInput"' in body
     assert 'id="testSessionNoteInput"' in body
     assert 'id="startTestSessionButton"' in body
     assert 'id="finishTestSessionButton"' in body
@@ -134,6 +135,8 @@ async def test_webrtc_static_asset_loads(webrtc_client, asset, expected):
 
     assert response.status == 200
     assert expected in body
+    if asset == "chat_real_test_session.js":
+        assert "planned_duration_seconds" in body
 
 
 @pytest.mark.asyncio
@@ -181,6 +184,9 @@ async def test_dashboard_homepage_declares_complete_stats_surface(dashboard_clie
         "clearStatsButton",
         "statsState",
         "statsRefreshState",
+        "livePeerPairSelect",
+        "liveMetricSelect",
+        "liveTrendChart",
         "peerPairList",
         "latestStatsPanel",
         "statsHistoryTable",
@@ -191,6 +197,7 @@ async def test_dashboard_homepage_declares_complete_stats_surface(dashboard_clie
         "csvMetricSelect",
         "csvAnalyzeButton",
         "csvValidationPanel",
+        "experimentComparisonPanel",
         "csvComparisonTable",
         "csvTrendComparison",
     ]:
@@ -273,6 +280,8 @@ async def test_dashboard_static_assets_are_versioned_and_loadable(dashboard_clie
     assert "window.__RTCTrainingDashboardTestHooks" in js_body
     assert "loadLiveStats" in js_body
     assert "clearLiveStats" in js_body
+    assert "setLivePeerPair" in js_body
+    assert "setLiveMetric" in js_body
     assert "analyzeCsvTexts" in js_body
     assert "setCsvMetric" in js_body
     assert "loadTestSessionCsvList" in js_body

@@ -16,12 +16,15 @@ class TestSessionStore:
             "test_session_id": session_id,
             "room_id": payload["room_id"],
             "peer_id": payload["peer_id"],
+            "display_name": payload.get("display_name") or "",
             "preset": payload.get("preset") or "manual",
+            "planned_duration_seconds": payload.get("planned_duration_seconds"),
             "metadata": dict(payload.get("metadata") or {}),
             "weak_network": dict(payload.get("weak_network") or {}),
             "status": "running",
             "started_at": self._now(),
             "finished_at": None,
+            "duration_seconds": None,
             "sample_count": 0,
             "output_path": None,
             "csv_files": [],
@@ -60,7 +63,13 @@ class TestSessionStore:
         session = self._require_session(test_session_id)
         session["status"] = "finished"
         session["finished_at"] = self._now()
+        session["duration_seconds"] = max(0, int(round(session["finished_at"] - session["started_at"])))
         session["sample_count"] = sample_count
+        session["csv_files"] = list(csv_files or [])
+        return dict(session)
+
+    def set_csv_files(self, test_session_id, csv_files):
+        session = self._require_session(test_session_id)
         session["csv_files"] = list(csv_files or [])
         return dict(session)
 

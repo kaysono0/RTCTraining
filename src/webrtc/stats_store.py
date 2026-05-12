@@ -69,16 +69,24 @@ class StatsStore:
         return sorted(samples, key=lambda sample: sample["sample_index"])
 
     def peers(self, *, room_id):
+        latest_by_pair = {}
+        for key, sample in self._latest.items():
+            if key[0] != room_id:
+                continue
+            pair_key = (key[0], key[1], key[2])
+            existing = latest_by_pair.get(pair_key)
+            if existing is None or sample["sample_index"] > existing["sample_index"]:
+                latest_by_pair[pair_key] = sample
+
         pairs = [
             {
-                "room_id": key[0],
-                "peer_id": key[1],
-                "remote_peer_id": key[2],
-                "last_sample_timestamp": self._latest[key].get("timestamp"),
-                "last_sample_index": self._latest[key].get("sample_index"),
+                "room_id": pair_key[0],
+                "peer_id": pair_key[1],
+                "remote_peer_id": pair_key[2],
+                "last_sample_timestamp": sample.get("timestamp"),
+                "last_sample_index": sample.get("sample_index"),
             }
-            for key in self._history
-            if key[0] == room_id
+            for pair_key, sample in latest_by_pair.items()
         ]
         return sorted(pairs, key=lambda pair: (pair["peer_id"], pair["remote_peer_id"]))
 

@@ -23,7 +23,9 @@ async def test_test_session_start_finish_cancel_routes(client):
         json={
             "room_id": "room1",
             "peer_id": "peer-a",
+            "display_name": "Alice",
             "preset": "nack_on",
+            "planned_duration_seconds": 45,
             "metadata": {"note": "baseline"},
             "weak_network": {"profile": "none"},
         },
@@ -36,7 +38,9 @@ async def test_test_session_start_finish_cancel_routes(client):
     assert session["status"] == "running"
     assert session["room_id"] == "room1"
     assert session["peer_id"] == "peer-a"
+    assert session["display_name"] == "Alice"
     assert session["preset"] == "nack_on"
+    assert session["planned_duration_seconds"] == 45
     assert session["metadata"] == {"note": "baseline"}
     assert session["weak_network"] == {"profile": "none"}
 
@@ -70,6 +74,7 @@ async def test_test_session_start_finish_cancel_routes(client):
     assert finished_response.status == 200
     assert finished["data"]["session"]["status"] == "finished"
     assert finished["data"]["session"]["sample_count"] == 1
+    assert isinstance(finished["data"]["session"]["duration_seconds"], int)
 
     canceled_response = await client.post(
         "/stats/test/cancel",
@@ -160,7 +165,12 @@ async def test_test_session_finish_writes_isolated_csv_files(csv_client):
     assert all(file["room_id"] == "room1" for file in files)
     assert all(file["test_session_id"] == session["test_session_id"] for file in files)
     assert all("path" not in file for file in files)
-    assert files[0]["relative_path"].endswith("/peer-a/peer-b.csv")
+    assert files[0]["filename"].endswith(".csv")
+    assert "nack-enabled" in files[0]["filename"]
+    assert "abr-on" in files[0]["filename"]
+    assert "bitrate-600kbps" in files[0]["filename"]
+    assert files[0]["display_name"]
+    assert files[0]["relative_path"].endswith(f"/peer-a/{files[0]['filename']}")
 
     csv_response = await csv_client.get(files[0]["download_url"])
     csv_body = await csv_response.text()
@@ -212,7 +222,9 @@ async def test_test_session_list_returns_finished_sessions_with_csv_files(csv_cl
     assert payload["data"]["sessions"][0]["preset"] == "abr_simple"
     assert payload["data"]["sessions"][0]["weak_network"] == {"profile": "loss_5"}
     assert payload["data"]["sessions"][0]["sample_count"] == 1
+    assert "duration_seconds" in payload["data"]["sessions"][0]
     assert payload["data"]["sessions"][0]["csv_files"][0]["remote_peer_id"] == "peer-b"
+    assert payload["data"]["sessions"][0]["csv_files"][0]["display_name"]
 
 
 @pytest.mark.asyncio
