@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Added MIT `LICENSE`, GitHub issue templates, PR template, and Dependabot config.
+- Added `docs/api/rooms-signaling.md` for rooms, signaling, Dashboard snapshot, and test session follow-up endpoints.
+- Added `docs/open-source-release-checklist.md` with release gates and required owner-provided materials.
+- Expanded `README.md` with feature scope, requirements, experiment flow, troubleshooting, and screenshot/video placeholders.
+- Expanded `SECURITY.md` with security boundary, reporting placeholders, and supported-version notes.
+- Moved historical plans, internal agent notes, and older design drafts under `docs/internal/`.
 - Added a lightweight local harness smoke command with `make harness-smoke`.
 - Added `automation.harness` helpers for service process management and HTTP checks.
 - Added harness tests to `make test-unit`.
@@ -33,3 +39,8 @@
 - Changed Live Stats Peer Pairs to show only the latest entry for each directed peer pair across test sessions.
 - Changed the Live Stats Metric selector to show the selected latest metric value in each Peer Pairs row.
 - Changed Live Trend to render one curve per peer pair when All pairs is selected.
+- Changed Dashboard CSV trend charts to normalize each file's `sample_index` from zero for aligned multi-file comparisons.
+- Fixed Dashboard live Peer Pair selection so periodic stats refreshes do not rebuild unchanged selector options.
+- Added a visible WebRTC test session elapsed timer that starts with `Start Session` and stops on finish or cancel.
+- Changed the WebRTC page to leave the room on page close and show `room_full` when Join is rejected by a full room.
+- Changed Dashboard Live Trend to render only the most recent 60 seconds of samples.

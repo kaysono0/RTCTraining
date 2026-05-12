@@ -5,12 +5,12 @@
       "title": "明确上下文传递规范",
       "goal": "把每次新 codex exec 需要显式注入的上下文、可复用的持久化上下文，以及 transcript 的分工写进自主开发文档。",
       "context_files": [
-        "docs/automation/RTCTraining_内部自主开发Agent.md",
-        "docs/RTCTraining_项目开发文档.md"
+        "docs/internal/automation/RTCTraining_内部自主开发Agent.md",
+        "docs/internal/archive/RTCTraining_项目开发文档.md"
       ],
       "allowed_paths": [
-        "docs/automation/RTCTraining_内部自主开发Agent.md",
-        "docs/RTCTraining_项目开发文档.md"
+        "docs/internal/automation/RTCTraining_内部自主开发Agent.md",
+        "docs/internal/archive/RTCTraining_项目开发文档.md"
       ],
       "acceptance": [
         "文档明确列出新任务需要显式传入的上下文。",
@@ -53,12 +53,12 @@
       "context_files": [
         "automation/runner/orchestrator.py",
         "tests/test_automation_runner.py",
-        "docs/automation/RTCTraining_内部自主开发Agent.md"
+        "docs/internal/automation/RTCTraining_内部自主开发Agent.md"
       ],
       "allowed_paths": [
         "automation/runner/orchestrator.py",
         "tests/test_automation_runner.py",
-        "docs/automation/RTCTraining_内部自主开发Agent.md"
+        "docs/internal/automation/RTCTraining_内部自主开发Agent.md"
       ],
       "acceptance": [
         "Markdown 任务报告新增 baseline 摘要。",
@@ -77,12 +77,12 @@
       "title": "补充失败报告说明",
       "goal": "在主项目文档中补充自动化 runner 的失败报告说明，明确 failed/blocked 任务也会输出 Markdown Failure Summary。",
       "context_files": [
-        "docs/RTCTraining_项目开发文档.md",
-        "docs/automation/RTCTraining_内部自主开发Agent.md"
+        "docs/internal/archive/RTCTraining_项目开发文档.md",
+        "docs/internal/automation/RTCTraining_内部自主开发Agent.md"
       ],
       "allowed_paths": [
-        "docs/RTCTraining_项目开发文档.md",
-        "docs/automation/RTCTraining_内部自主开发Agent.md"
+        "docs/internal/archive/RTCTraining_项目开发文档.md",
+        "docs/internal/automation/RTCTraining_内部自主开发Agent.md"
       ],
       "acceptance": [
         "主项目文档中说明 failed/blocked 任务也会输出 Failure Summary。",
@@ -102,12 +102,12 @@
       "context_files": [
         "automation/runner/orchestrator.py",
         "tests/test_automation_runner.py",
-        "docs/automation/RTCTraining_内部自主开发Agent.md"
+        "docs/internal/automation/RTCTraining_内部自主开发Agent.md"
       ],
       "allowed_paths": [
         "automation/runner/orchestrator.py",
         "tests/test_automation_runner.py",
-        "docs/automation/RTCTraining_内部自主开发Agent.md"
+        "docs/internal/automation/RTCTraining_内部自主开发Agent.md"
       ],
       "acceptance": [
         "approval 产物中记录 changed_files。",
@@ -129,13 +129,13 @@
         "automation/runner/orchestrator.py",
         "automation/runner/diff_validator.py",
         "tests/test_automation_runner.py",
-        "docs/automation/RTCTraining_内部自主开发Agent.md"
+        "docs/internal/automation/RTCTraining_内部自主开发Agent.md"
       ],
       "allowed_paths": [
         "automation/runner/orchestrator.py",
         "automation/runner/diff_validator.py",
         "tests/test_automation_runner.py",
-        "docs/automation/RTCTraining_内部自主开发Agent.md"
+        "docs/internal/automation/RTCTraining_内部自主开发Agent.md"
       ],
       "acceptance": [
         "approval 产物中记录 changed_files。",
@@ -157,14 +157,14 @@
       "context_files": [
         "automation/runner/orchestrator.py",
         "tests/test_automation_runner.py",
-        "docs/automation/RTCTraining_内部自主开发Agent.md",
-        "docs/RTCTraining_项目开发文档.md"
+        "docs/internal/automation/RTCTraining_内部自主开发Agent.md",
+        "docs/internal/archive/RTCTraining_项目开发文档.md"
       ],
       "allowed_paths": [
         "automation/runner/orchestrator.py",
         "tests/test_automation_runner.py",
-        "docs/automation/RTCTraining_内部自主开发Agent.md",
-        "docs/RTCTraining_项目开发文档.md"
+        "docs/internal/automation/RTCTraining_内部自主开发Agent.md",
+        "docs/internal/archive/RTCTraining_项目开发文档.md"
       ],
       "acceptance": [
         "approval 产物中记录 changed_files_count。",

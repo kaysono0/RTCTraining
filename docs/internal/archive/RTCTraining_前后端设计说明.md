@@ -1094,7 +1094,20 @@ Live Trend 使用当前 snapshot history 本地计算，不新增后端接口。
 
 当 `livePeerPairSelect = all` 时，趋势图使用当前 snapshot 中所有方向的历史样本。选中单个 `peer_id -> remote_peer_id` 后，latest、history 和 trend 都只展示该方向。
 
-### 9.7 Dashboard 测试钩子
+### 9.7 CSV 趋势图横坐标
+
+CSV 原始 `sample_index` 表示 WebRTC 服务进程内的单调递增序号。Dashboard 分析多份 CSV 时，不直接用原始 `sample_index` 作为趋势图横坐标。
+
+渲染规则：
+
+- 每份 CSV 单独计算自身最小 `sample_index`。
+- 图表横坐标使用 `sample_index - min_sample_index`，从 0 开始。
+- `sample_index` 缺失或非法时，使用该 CSV 内的行序号。
+- CSV 原始 rows、汇总统计和导出文件不改写。
+
+这样可以对齐不同时间导出的 CSV，让横坐标表达“本次实验开始后的第 N 个样本”。
+
+### 9.8 Dashboard 测试钩子
 
 `window.__RTCTrainingDashboardTestHooks`：
 

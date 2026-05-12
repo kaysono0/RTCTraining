@@ -28,10 +28,14 @@ def test_architecture_doc_declares_public_boundaries():
 def test_api_docs_declare_stable_envelope_and_stats_schema():
     stats = read("docs/api/stats.md")
     errors = read("docs/api/errors.md")
+    rooms_signaling = read("docs/api/rooms-signaling.md")
     csv_schema = read("docs/api/csv_schema.md")
 
     assert '{"ok": true, "data": {}}' in stats
     assert '{"ok": false, "error": {' in errors
+    assert "POST /rooms/join" in rooms_signaling
+    assert "POST /signal" in rooms_signaling
+    assert "GET /dashboard/snapshot" in rooms_signaling
     for field in [
         "room_id",
         "peer_id",
@@ -65,7 +69,7 @@ def test_csv_schema_documents_every_exported_field():
 
 
 def test_playwright_ci_evaluation_documents_costs_and_decision():
-    body = read("docs/agents/playwright_e2e_ci_evaluation.md")
+    body = read("docs/internal/agents/playwright_e2e_ci_evaluation.md")
 
     for text in [
         "Playwright E2E CI Evaluation",
@@ -78,5 +82,19 @@ def test_playwright_ci_evaluation_documents_costs_and_decision():
         "do not add Playwright E2E as a required PR gate yet",
         "https://playwright.dev/python/docs/ci",
         "https://docs.github.com/en/actions/reference/runners/github-hosted-runners",
+    ]:
+        assert text in body
+
+
+def test_release_checklist_declares_materials_and_internal_history_location():
+    body = read("docs/open-source-release-checklist.md")
+
+    for text in [
+        "Open Source Release Checklist",
+        "开源者需要提供以下信息与材料：",
+        "Final license choice",
+        "Security contact email",
+        "Screenshot files",
+        "docs/internal/",
     ]:
         assert text in body

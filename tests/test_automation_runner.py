@@ -317,10 +317,10 @@ def test_patch_with_too_many_files_is_blocked_for_approval(tmp_path):
 
 def test_validate_patch_accepts_git_quoted_unicode_paths():
     patch = (
-        'diff --git "a/docs/automation/RTCTraining_\\345\\206\\205\\351\\203\\250\\350\\207\\252\\344\\270\\273\\345\\274\\200\\345\\217\\221Agent.md" '
-        '"b/docs/automation/RTCTraining_\\345\\206\\205\\351\\203\\250\\350\\207\\252\\344\\270\\273\\345\\274\\200\\345\\217\\221Agent.md"\n'
-        '--- "a/docs/automation/RTCTraining_\\345\\206\\205\\351\\203\\250\\350\\207\\252\\344\\270\\273\\345\\274\\200\\345\\217\\221Agent.md"\n'
-        '+++ "b/docs/automation/RTCTraining_\\345\\206\\205\\351\\203\\250\\350\\207\\252\\344\\270\\273\\345\\274\\200\\345\\217\\221Agent.md"\n'
+        'diff --git "a/docs/internal/automation/RTCTraining_\\345\\206\\205\\351\\203\\250\\350\\207\\252\\344\\270\\273\\345\\274\\200\\345\\217\\221Agent.md" '
+        '"b/docs/internal/automation/RTCTraining_\\345\\206\\205\\351\\203\\250\\350\\207\\252\\344\\270\\273\\345\\274\\200\\345\\217\\221Agent.md"\n'
+        '--- "a/docs/internal/automation/RTCTraining_\\345\\206\\205\\351\\203\\250\\350\\207\\252\\344\\270\\273\\345\\274\\200\\345\\217\\221Agent.md"\n'
+        '+++ "b/docs/internal/automation/RTCTraining_\\345\\206\\205\\351\\203\\250\\350\\207\\252\\344\\270\\273\\345\\274\\200\\345\\217\\221Agent.md"\n'
         "@@ -28,6 +28,7 @@\n"
         " - `command` 模型网关，通过 `automation/config/runtime.json` 的 `model_command` 调用外部模型命令生成 unified diff。\n"
         " - 有限失败修复循环：required checks 失败后，最多按任务的 `max_repair_attempts` 请求修复 patch 并重跑测试。\n"
@@ -329,14 +329,14 @@ def test_validate_patch_accepts_git_quoted_unicode_paths():
 
     validation = validate_patch(
         patch,
-        allowed_paths=["docs/automation/RTCTraining_内部自主开发Agent.md"],
+        allowed_paths=["docs/internal/automation/RTCTraining_内部自主开发Agent.md"],
         forbidden_paths=["data/**", "certs/**", ".env"],
         max_patch_bytes=20000,
         max_changed_files=4,
     )
 
     assert validation.ok is True
-    assert validation.changed_files == ["docs/automation/RTCTraining_内部自主开发Agent.md"]
+    assert validation.changed_files == ["docs/internal/automation/RTCTraining_内部自主开发Agent.md"]
 
 
 def test_apply_unified_patch_can_create_new_file(tmp_path):

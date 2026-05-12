@@ -46,10 +46,10 @@
 
 按需再读：
 
-- 项目背景：`docs/RTCTraining_项目开发文档.md`
-- 前后端设计：`docs/RTCTraining_前后端设计说明.md`
-- 历史记忆：`docs/agents/RTCTraining_agent_memory.md`
-- 开源重构计划：`docs/superpowers/plans/2026-05-09-open-source-architecture-refactor.md`
+- 项目背景：`docs/internal/archive/RTCTraining_项目开发文档.md`
+- 前后端设计：`docs/internal/archive/RTCTraining_前后端设计说明.md`
+- 历史记忆：`docs/internal/agents/RTCTraining_agent_memory.md`
+- 开源重构计划：`docs/internal/superpowers/plans/2026-05-09-open-source-architecture-refactor.md`
 
 不要为了小改动通读所有历史文档。只加载当前任务需要的上下文。
 
@@ -78,7 +78,8 @@
 - `automation/harness/`：轻量服务级 smoke harness。
 - `automation/runner/`：自动开发 runner，高级能力。
 - `tests/`：单元、handler、Playwright E2E。
-- `docs/`：设计、计划、验证、历史记录。
+- `docs/`：公开架构、API、验证和发布文档。
+- `docs/internal/`：历史计划、内部 agent 文档和旧设计材料。
 - `certs/`、`data/`：本地生成数据，忽略提交。
 
 ## 5. 固定决策
@@ -196,4 +197,4 @@ make test-e2e
 - 涉及服务启动时，`make harness-smoke` 通过。
 - 涉及浏览器行为时，`make test-e2e` 通过。
 - 涉及公共行为时，文档和 `CHANGELOG.md` 已更新。
-- 涉及重构计划时，按 `2026-05-09-open-source-architecture-refactor.md` 的阶段和审核点执行。
+- 涉及重构计划时，按 `docs/internal/superpowers/plans/2026-05-09-open-source-architecture-refactor.md` 的阶段和审核点执行。
