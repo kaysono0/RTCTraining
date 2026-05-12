@@ -40,6 +40,20 @@ def wait_for_url(url, *, ignore_tls=False, timeout=10):
     raise AssertionError(f"Timed out waiting for {url}: {last_error}")
 
 
+def wait_for_webrtc_members(server_url, room_id, expected_count, *, timeout=5):
+    deadline = time.monotonic() + timeout
+    context = ssl._create_unverified_context()
+    last_payload = None
+    while time.monotonic() < deadline:
+        with urlopen(f"{server_url}/rooms/{room_id}/members", context=context, timeout=1) as response:
+            last_payload = json.loads(response.read().decode("utf-8"))
+        members = last_payload["data"]["members"]
+        if len(members) == expected_count:
+            return members
+        time.sleep(0.1)
+    raise AssertionError(f"expected {expected_count} members, got {last_payload}")
+
+
 @contextlib.contextmanager
 def managed_process(command, *, env=None):
     process = subprocess.Popen(
@@ -208,6 +222,60 @@ def test_webrtc_join_starts_media_when_needed(browser_context, webrtc_https_serv
     )
     missing = [t for t in ["local_media_requesting", "local_media_ready", "joined_room"] if t not in timeline_types]
     assert not missing, f"expected events not found: {missing}, timeline: {timeline_types}"
+
+
+def test_webrtc_page_leave_room_on_close(browser_context, webrtc_https_server):
+    room_id = "close-cleans-room"
+    page = browser_context.new_page()
+
+    page.goto(webrtc_https_server)
+    page.fill("#roomIdInput", room_id)
+    page.fill("#displayNameInput", "Closing Learner")
+    page.get_by_role("button", name="Join").click()
+
+    expect(page.locator("#connectionState")).to_have_text("joined")
+    assert len(wait_for_webrtc_members(webrtc_https_server, room_id, 1)) == 1
+
+    page.close()
+
+    assert wait_for_webrtc_members(webrtc_https_server, room_id, 0) == []
+
+
+def test_webrtc_join_room_full_shows_room_full(browser_context, webrtc_https_server):
+    page = browser_context.new_page()
+    room_id = "full-room"
+
+    page.goto(webrtc_https_server)
+    page.evaluate(
+        """
+        async (roomId) => {
+          for (const clientId of ["seed-a", "seed-b", "seed-c"]) {
+            const response = await fetch("/rooms/join", {
+              method: "POST",
+              headers: {"Content-Type": "application/json"},
+              body: JSON.stringify({
+                room_id: roomId,
+                client_id: clientId,
+                display_name: clientId
+              })
+            });
+            if (!response.ok) {
+              throw new Error(`seed join failed: ${response.status}`);
+            }
+          }
+        }
+        """,
+        arg=room_id,
+    )
+    page.fill("#roomIdInput", room_id)
+    page.fill("#displayNameInput", "Blocked Learner")
+    page.get_by_role("button", name="Join").click()
+
+    expect(page.locator("#connectionState")).to_have_text("room_full")
+    timeline_types = page.evaluate(
+        "window.__RTCTrainingTestHooks.getTimeline().map((event) => event.type)"
+    )
+    assert "join_room_failed" in timeline_types
 
 
 def test_webrtc_media_error_records_browser_error_name(browser_context, webrtc_https_server):
@@ -492,6 +560,7 @@ def test_webrtc_page_runs_test_session_lifecycle(browser_context, webrtc_https_s
     page.goto(webrtc_https_server)
 
     expect(page.locator("#testSessionState")).to_have_text("test_session_idle")
+    expect(page.locator("#testSessionElapsed")).to_have_text("Elapsed: 00:00")
     result = page.evaluate(
         """
         window.__RTCTrainingTestHooks.startTestSession({
@@ -505,6 +574,7 @@ def test_webrtc_page_runs_test_session_lifecycle(browser_context, webrtc_https_s
     assert result["status"] == "running"
     assert page.evaluate("window.__RTCTrainingTestHooks.getTestSessionId()") == result["test_session_id"]
     expect(page.locator("#testSessionState")).to_have_text("test_session_running")
+    expect(page.locator("#testSessionElapsed")).to_have_text(re.compile(r"Elapsed: 00:0[1-9]"), timeout=2500)
 
     sample = page.evaluate(
         """
@@ -520,6 +590,9 @@ def test_webrtc_page_runs_test_session_lifecycle(browser_context, webrtc_https_s
     finished = page.evaluate("window.__RTCTrainingTestHooks.finishTestSession()")
     assert finished["status"] == "finished"
     expect(page.locator("#testSessionState")).to_have_text("test_session_finished")
+    stopped_elapsed = page.evaluate("window.__RTCTrainingTestHooks.getTestSessionElapsedText()")
+    page.wait_for_timeout(1200)
+    assert page.evaluate("window.__RTCTrainingTestHooks.getTestSessionElapsedText()") == stopped_elapsed
     expect(page.locator("#testSessionDownloads a")).to_have_count(1)
 
 
@@ -1140,7 +1213,7 @@ def test_dashboard_filters_live_stats_by_peer_pair_and_metric(
     samples = [
         {
             "sample_index": 1,
-            "timestamp": 1778140800,
+            "timestamp": 1778140730,
             "room_id": "filter-room",
             "peer_id": "peer-a",
             "remote_peer_id": "peer-b",
@@ -1293,6 +1366,26 @@ def test_dashboard_filters_live_stats_by_peer_pair_and_metric(
     assert "Alice (peer-a) -> Bob (peer-b)" in all_result["trend"]
     assert "Charlie (peer-c) -> Dana (peer-d)" in all_result["trend"]
 
+    stable_options = page.evaluate(
+        """
+        async () => {
+          const hooks = window.__RTCTrainingDashboardTestHooks;
+          const select = document.querySelector("#livePeerPairSelect");
+          const optionBefore = select.options[1];
+          await hooks.loadLiveStats();
+          return {
+            sameOptionNode: optionBefore === select.options[1],
+            value: select.value,
+            optionCount: select.options.length
+          };
+        }
+        """
+    )
+
+    assert stable_options["sameOptionNode"] is True
+    assert stable_options["value"] == "all"
+    assert stable_options["optionCount"] == 3
+
     result = page.evaluate(
         """
         () => {
@@ -1319,6 +1412,8 @@ def test_dashboard_filters_live_stats_by_peer_pair_and_metric(
     assert result["lineCount"] == 1
     assert result["rows"] == 2
     assert "Bitrate Trend" in result["trend"]
+    points = page.locator("#liveTrendChart svg polyline").first.get_attribute("points").split(" ")
+    assert len(points) == 1
 
 
 def test_dashboard_compares_multiple_csv_files(
@@ -1598,6 +1693,44 @@ def test_dashboard_renders_csv_trend_chart(
     expect(page.locator("#csvTrendChart polyline")).to_have_count(2)
     expect(page.locator("#csvTrendChart")).to_contain_text("nack_on.csv")
     expect(page.locator("#csvTrendChart")).to_contain_text("abr_on.csv")
+
+
+def test_dashboard_normalizes_csv_trend_sample_index_per_file(
+    browser_context,
+    dashboard_server,
+    webrtc_https_server,
+):
+    page = browser_context.new_page()
+
+    page.goto(f"{dashboard_server}/?webrtc_origin={webrtc_https_server}")
+    page.evaluate(
+        """
+        window.__RTCTrainingDashboardTestHooks.analyzeCsvTexts([
+          {
+            name: "late_start_a.csv",
+            text: [
+              "sample_index,timestamp,room_id,test_session_id,peer_id,remote_peer_id,rtt_ms,packet_loss_rate,jitter_ms,bitrate_kbps,fps,nack_mode,abr_mode",
+              "120,1000,room1,s1,peer-a,peer-b,20,1,5,900,30,enabled,off",
+              "121,1001,room1,s1,peer-a,peer-b,25,2,6,850,29,enabled,off"
+            ].join("\\n")
+          },
+          {
+            name: "late_start_b.csv",
+            text: [
+              "sample_index,timestamp,room_id,test_session_id,peer_id,remote_peer_id,rtt_ms,packet_loss_rate,jitter_ms,bitrate_kbps,fps,nack_mode,abr_mode",
+              "900,1000,room1,s2,peer-a,peer-b,50,4,8,800,24,enabled,on",
+              "901,1001,room1,s2,peer-a,peer-b,28,2,6,1100,30,enabled,on"
+            ].join("\\n")
+          }
+        ])
+        """
+    )
+
+    expect(page.locator("#csvTrendChart")).to_contain_text("Normalized Sample Index")
+    first_x_values = page.locator("#csvTrendChart polyline").evaluate_all(
+        """lines => lines.map(line => Number(line.getAttribute("points").split(" ")[0].split(",")[0]))"""
+    )
+    assert first_x_values == [62, 62]
 
 
 def test_dashboard_loads_finished_session_csv_files(

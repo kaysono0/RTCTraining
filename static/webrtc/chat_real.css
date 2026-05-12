@@ -167,7 +167,7 @@ body {
   align-items: end;
   display: grid;
   gap: 10px;
-  grid-template-columns: minmax(120px, 0.7fr) minmax(140px, 0.8fr) minmax(110px, 0.55fr) minmax(180px, 1fr) auto auto auto auto;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(140px, 0.8fr) minmax(110px, 0.55fr) minmax(180px, 1fr) auto auto auto auto auto;
 }
 
 .test-session-controls label {
@@ -202,13 +202,20 @@ body {
   color: #ffffff;
 }
 
-#testSessionState {
+#testSessionState,
+#testSessionElapsed {
   align-items: center;
   color: #475569;
   display: inline-flex;
   font-size: 13px;
   min-height: 36px;
   overflow-wrap: anywhere;
+}
+
+#testSessionElapsed {
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+  min-width: 104px;
 }
 
 .test-session-summary,

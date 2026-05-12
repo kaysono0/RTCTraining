@@ -12,6 +12,7 @@
     nack_on_abr_on: { nackMode: "enabled", bitrateKbps: null, abrMode: "on" },
     nack_off_abr_on: { nackMode: "disabled", bitrateKbps: null, abrMode: "on" }
   };
+  let elapsedTimer = null;
 
   function weakNetworkLabel(session) {
     const weak = session && session.weak_network ? session.weak_network : {};
@@ -30,6 +31,52 @@
     }
     const end = session.finished_at || Date.now() / 1000;
     return `${Math.max(0, Math.round(end - session.started_at))}s`;
+  }
+
+  function elapsedSeconds(session) {
+    if (!session) {
+      return 0;
+    }
+    if (session.duration_seconds !== null && session.duration_seconds !== undefined) {
+      return Math.max(0, Number.parseInt(session.duration_seconds, 10) || 0);
+    }
+    if (!session.started_at) {
+      return 0;
+    }
+    const end = session.finished_at || Date.now() / 1000;
+    return Math.max(0, Math.floor(end - session.started_at));
+  }
+
+  function formatElapsed(seconds) {
+    const total = Math.max(0, Number.parseInt(seconds, 10) || 0);
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const secs = total % 60;
+    const two = (value) => String(value).padStart(2, "0");
+    return hours > 0
+      ? `${hours}:${two(minutes)}:${two(secs)}`
+      : `${two(minutes)}:${two(secs)}`;
+  }
+
+  function renderElapsed() {
+    const elapsed = document.getElementById("testSessionElapsed");
+    if (!elapsed) {
+      return;
+    }
+    elapsed.textContent = `Elapsed: ${formatElapsed(elapsedSeconds(shared.state.testSession))}`;
+  }
+
+  function stopElapsedTimer() {
+    if (elapsedTimer) {
+      window.clearInterval(elapsedTimer);
+      elapsedTimer = null;
+    }
+  }
+
+  function startElapsedTimer() {
+    stopElapsedTimer();
+    renderElapsed();
+    elapsedTimer = window.setInterval(renderElapsed, 1000);
   }
 
   function plannedDurationLabel(session) {
@@ -58,6 +105,7 @@
       label.textContent = `test_session_${shared.state.testSessionStatus}`;
     }
     const session = shared.state.testSession;
+    renderElapsed();
     renderPresetSummary(session && session.preset ? session.preset : "manual");
     const details = document.getElementById("testSessionDetails");
     if (details) {
@@ -181,6 +229,7 @@
     shared.state.testSessionId = session.test_session_id;
     shared.state.testSessionStatus = session.status;
     shared.state.testSession = session;
+    startElapsedTimer();
     renderTestSession();
     shared.addTimelineEvent("test_session_started", {
       category: "test",
@@ -199,6 +248,7 @@
     shared.state.testSessionId = null;
     shared.state.testSessionStatus = session.status;
     shared.state.testSession = session;
+    stopElapsedTimer();
     renderTestSession();
     shared.addTimelineEvent("test_session_finished", {
       category: "test",
@@ -217,6 +267,7 @@
     shared.state.testSessionId = null;
     shared.state.testSessionStatus = session.status;
     shared.state.testSession = session;
+    stopElapsedTimer();
     renderTestSession();
     shared.addTimelineEvent("test_session_canceled", {
       category: "test",

@@ -120,10 +120,13 @@ function bootstrapRTCTraining() {
       summary: "join button clicked, room=" + roomId + " display=" + displayName + " connectionState=" + shared.state.connectionState + " hasLocalStream=" + !!shared.state.localStream
     });
     session.joinRoom(roomId, displayName).catch((error) => {
-      shared.setConnectionState("failed");
       if (["NotAllowedError", "NotFoundError", "NotReadableError", "NotSupportedError", "OverconstrainedError"].includes(error.name)) {
+        shared.setConnectionState("failed");
         shared.addTimelineEvent("media_error", session.describeMediaError(error));
         return;
+      }
+      if (!["room_full"].includes(shared.state.connectionState)) {
+        shared.setConnectionState("failed");
       }
       shared.addTimelineEvent("join_room_failed", { category: "error", summary: error.message });
     });
@@ -134,6 +137,9 @@ function bootstrapRTCTraining() {
       shared.addTimelineEvent("leave_room_failed", { category: "error", summary: error.message });
     });
   });
+  if (session.leaveRoomOnPageHide) {
+    window.addEventListener("pagehide", session.leaveRoomOnPageHide);
+  }
 
   window.__RTCTrainingTestHooks = {
     getState() {
@@ -221,6 +227,10 @@ function bootstrapRTCTraining() {
     },
     getTestSessionStatus() {
       return shared.state.testSessionStatus;
+    },
+    getTestSessionElapsedText() {
+      const elapsed = document.getElementById("testSessionElapsed");
+      return elapsed ? elapsed.textContent : "";
     },
     applyTestPreset(presetName) {
       return testSession.applyTestPreset(presetName);

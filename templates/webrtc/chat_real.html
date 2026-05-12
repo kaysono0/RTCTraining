@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>RTCTraining</title>
-    <link rel="stylesheet" href="/static/webrtc/chat_real.css?v=20260510-sdp-parsed-session-duration-readable-csv">
+    <link rel="stylesheet" href="/static/webrtc/chat_real.css?v=20260512-session-elapsed-timer">
   </head>
   <body>
     <main class="app-shell">
@@ -112,6 +112,7 @@
           <button id="finishTestSessionButton" type="button">Finish</button>
           <button id="cancelTestSessionButton" type="button">Cancel</button>
           <span id="testSessionState">test_session_idle</span>
+          <span id="testSessionElapsed">Elapsed: 00:00</span>
         </div>
         <div id="testSessionPresetSummary" class="test-session-summary">preset: manual</div>
         <div id="testSessionDetails" class="test-session-details"></div>
@@ -135,12 +136,12 @@
     <script src="/static/webrtc/chat_real_shared.js?v=20260508-mobile-media-sdp-parsed-view"></script>
     <script src="/static/webrtc/chat_real_nack.js?v=20260507-nack-mode-manual-bitrate-mobile-media"></script>
     <script src="/static/webrtc/chat_real_bitrate.js?v=20260508-nack-mode-manual-bitrate-auto-abr-mobile-media"></script>
-    <script src="/static/webrtc/chat_real_test_session.js?v=20260510-test-session-duration-readable-csv"></script>
+    <script src="/static/webrtc/chat_real_test_session.js?v=20260512-session-elapsed-timer"></script>
     <script src="/static/webrtc/rtc/stats_normalizer.js?v=20260509-stats-modules"></script>
     <script src="/static/webrtc/ui/remote_stats_view.js?v=20260509-stats-modules"></script>
-    <script src="/static/webrtc/chat_real_session.js?v=20260508-mobile-media-sdp-parsed-view"></script>
+    <script src="/static/webrtc/chat_real_session.js?v=20260512-room-cleanup"></script>
     <script src="/static/webrtc/chat_real_stats.js?v=20260508-nack-mode-manual-bitrate-auto-abr-mobile-media"></script>
-    <script src="/static/webrtc/chat_real_bootstrap.js?v=20260508-nack-mode-manual-bitrate-mobile-media-session-presets"></script>
+    <script src="/static/webrtc/chat_real_bootstrap.js?v=20260512-room-cleanup"></script>
     <script>
       window.__RTCTrainingTestHooks = window.__RTCTrainingTestHooks || {};
     </script>

@@ -12,6 +12,7 @@
     selectedPeerPair: "all",
     metric: "rtt_ms"
   };
+  const LIVE_TREND_WINDOW_SECONDS = 60;
   const csvAnalysisState = {
     result: null,
     metric: "rtt_ms",
@@ -437,10 +438,16 @@
   }
 
   function csvSeries(file, metricName) {
-    return (file.rows || [])
+    const rows = file.rows || [];
+    const sampleIndexes = rows
+      .map((row) => numberFromRow(row, "sample_index"))
+      .filter((value) => value !== null);
+    const minSampleIndex = sampleIndexes.length ? Math.min(...sampleIndexes) : null;
+    return rows
       .map((row, index) => {
+        const sampleIndex = numberFromRow(row, "sample_index");
         return {
-          x: numberFromRow(row, "sample_index") || index + 1,
+          x: sampleIndex !== null && minSampleIndex !== null ? sampleIndex - minSampleIndex : index,
           y: numberFromRow(row, metricName)
         };
       })
@@ -484,7 +491,7 @@
     var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("viewBox", "0 0 " + width + " " + height);
     svg.setAttribute("role", "img");
-    svg.setAttribute("aria-label", metricConfig.label + " trend over sample index");
+    svg.setAttribute("aria-label", metricConfig.label + " trend over normalized sample index");
 
     // Chart title
     var title = document.createElementNS("http://www.w3.org/2000/svg", "text");
@@ -540,7 +547,7 @@
     xAxisLabel.setAttribute("text-anchor", "middle");
     xAxisLabel.setAttribute("fill", "#53636b");
     xAxisLabel.setAttribute("font-size", "11");
-    xAxisLabel.textContent = "Sample Index";
+    xAxisLabel.textContent = "Normalized Sample Index";
     svg.appendChild(xAxisLabel);
 
     // X-axis tick labels
@@ -759,19 +766,35 @@
       return;
     }
     const current = liveStatsState.selectedPeerPair;
-    select.innerHTML = "";
-    const allOption = document.createElement("option");
-    allOption.value = "all";
-    allOption.textContent = "All pairs";
-    select.appendChild(allOption);
+    const options = [{ value: "all", label: "All pairs" }];
     for (const peer of peers || []) {
-      const option = document.createElement("option");
-      option.value = peerPairKey(peer.peer_id, peer.remote_peer_id);
-      option.textContent = peerPairLabel(peer.peer_id, peer.remote_peer_id, labels);
-      select.appendChild(option);
+      options.push({
+        value: peerPairKey(peer.peer_id, peer.remote_peer_id),
+        label: peerPairLabel(peer.peer_id, peer.remote_peer_id, labels)
+      });
     }
-    const values = Array.from(select.options).map((option) => option.value);
-    liveStatsState.selectedPeerPair = values.includes(current) ? current : "all";
+
+    const existingValues = Array.from(select.options).map((option) => option.value);
+    const nextValues = options.map((option) => option.value);
+    const valuesChanged = existingValues.length !== nextValues.length ||
+      existingValues.some((value, index) => value !== nextValues[index]);
+    if (valuesChanged) {
+      select.innerHTML = "";
+      for (const optionData of options) {
+        const option = document.createElement("option");
+        option.value = optionData.value;
+        option.textContent = optionData.label;
+        select.appendChild(option);
+      }
+    } else {
+      options.forEach((optionData, index) => {
+        if (select.options[index].textContent !== optionData.label) {
+          select.options[index].textContent = optionData.label;
+        }
+      });
+    }
+
+    liveStatsState.selectedPeerPair = nextValues.includes(current) ? current : "all";
     select.value = liveStatsState.selectedPeerPair;
   }
 
@@ -890,6 +913,24 @@
       .filter((point) => Number.isFinite(point.y));
   }
 
+  function liveTrendWindowSamples(samples, serverTime) {
+    const rows = samples || [];
+    const numericTimes = rows
+      .map((sample) => Number(sample.timestamp))
+      .filter((value) => Number.isFinite(value));
+    const endTime = Number.isFinite(Number(serverTime))
+      ? Number(serverTime)
+      : (numericTimes.length ? Math.max(...numericTimes) : null);
+    if (endTime === null) {
+      return rows.slice(-LIVE_TREND_WINDOW_SECONDS);
+    }
+    const startTime = endTime - LIVE_TREND_WINDOW_SECONDS;
+    return rows.filter((sample) => {
+      const timestamp = Number(sample.timestamp);
+      return Number.isFinite(timestamp) && timestamp >= startTime && timestamp <= endTime;
+    });
+  }
+
   function liveTrendSeriesGroups(samples, labels) {
     const groups = new Map();
     for (const sample of samples || []) {
@@ -915,7 +956,7 @@
       .sort((left, right) => left.label.localeCompare(right.label));
   }
 
-  function renderLiveTrend(samples, labels) {
+  function renderLiveTrend(samples, labels, serverTime) {
     const chart = document.getElementById("liveTrendChart");
     if (!chart) {
       return;
@@ -923,7 +964,7 @@
     chart.innerHTML = "";
     const metricName = liveStatsState.metric;
     const metricConfig = LIVE_METRICS[metricName] || LIVE_METRICS.rtt_ms;
-    const groups = liveTrendSeriesGroups(samples, labels);
+    const groups = liveTrendSeriesGroups(liveTrendWindowSamples(samples, serverTime), labels);
     const points = groups.flatMap((group) => group.points);
     if (points.length < 1) {
       const empty = document.createElement("div");
@@ -1007,7 +1048,7 @@
 
     const caption = document.createElement("div");
     caption.className = "live-trend-empty";
-    caption.textContent = `${metricConfig.label}: ${points.length} samples / ${groups.length} pairs${metricConfig.suffix ? ` (${metricConfig.suffix.trim()})` : ""}`;
+    caption.textContent = `${metricConfig.label}: ${points.length} samples / ${groups.length} pairs / last ${LIVE_TREND_WINDOW_SECONDS}s${metricConfig.suffix ? ` (${metricConfig.suffix.trim()})` : ""}`;
     const legend = document.createElement("div");
     legend.className = "live-trend-empty";
     legend.textContent = groups.map((group) => group.label).join(" | ");
@@ -1061,7 +1102,7 @@
     renderPeerPairs(visiblePeers, labels, snapshot.latest || []);
     renderLatestStats(visibleLatest, labels);
     renderHistoryRows(visibleHistory, labels);
-    renderLiveTrend(visibleHistory, labels);
+    renderLiveTrend(visibleHistory, labels, snapshot.server_time);
     renderMeshTopology(snapshot, labels);
     if (peers.length === 0) {
       setText("statsState", "service_online_but_no_stats");

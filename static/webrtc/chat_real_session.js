@@ -909,7 +909,7 @@
       }, null, 2)
     });
     if (!payload.ok) {
-      shared.setConnectionState("failed");
+      shared.setConnectionState(payload.error && payload.error.code ? payload.error.code : "failed");
       throw new Error(payload.error.message);
     }
     for (const peer of payload.data.existing_peers) {
@@ -954,10 +954,40 @@
     return payload.data;
   }
 
+  function leaveRoomOnPageHide() {
+    if (!shared.state.roomId || ["idle", "left", "failed", "room_full"].includes(shared.state.connectionState)) {
+      return;
+    }
+    const body = JSON.stringify({
+      room_id: shared.state.roomId,
+      client_id: shared.state.clientId
+    });
+    if (window.RTCTrainingStats) {
+      window.RTCTrainingStats.stop();
+    }
+    stopSignalPolling();
+    if (navigator.sendBeacon) {
+      const sent = navigator.sendBeacon(
+        "/rooms/leave",
+        new Blob([body], { type: "application/json" })
+      );
+      if (sent) {
+        return;
+      }
+    }
+    fetch("/rooms/leave", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      keepalive: true
+    }).catch(() => {});
+  }
+
   window.RTCTrainingSession = {
     startMedia,
     joinRoom,
     leaveRoom,
+    leaveRoomOnPageHide,
     describeMediaError,
     renderRemotePeerStats
   };
