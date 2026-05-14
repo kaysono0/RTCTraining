@@ -4,29 +4,38 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>RTCTraining</title>
-    <link rel="stylesheet" href="/static/webrtc/chat_real.css?v=20260512-session-elapsed-timer">
+    <link rel="stylesheet" href="/static/webrtc/chat_real.css?v=20260514-effect-icons">
   </head>
   <body>
     <main class="app-shell">
       <section class="topbar">
-        <div>
+        <div class="brand-row">
           <h1>RTCTraining</h1>
           <p id="connectionState">idle</p>
+          <div class="param-effect-legend" aria-label="Parameter effect legend">
+            <span><i class="param-effect-badge param-effect-reconnect" aria-hidden="true">↻</i> 重连生效</span>
+            <span><i class="param-effect-badge param-effect-immediate" aria-hidden="true">⚡</i> 即时生效</span>
+          </div>
+        </div>
+        <div class="mobile-action-bar" aria-label="Room actions">
+          <button id="startMediaButton" type="button">Start Media</button>
+          <button id="joinRoomButton" type="button">Join</button>
+          <button id="leaveRoomButton" type="button">Leave</button>
         </div>
         <div class="room-controls">
           <div class="control-group identity-control-group">
             <label>
-              <span>Room <small class="param-effect-badge param-effect-reconnect">重连生效</small></span>
+              <span>Room <small class="param-effect-badge param-effect-reconnect" aria-label="重连生效" title="重连生效">↻</small></span>
               <input id="roomIdInput" value="room1" aria-label="Room ID">
             </label>
             <label>
-              <span>Name <small class="param-effect-badge param-effect-reconnect">重连生效</small></span>
+              <span>Name <small class="param-effect-badge param-effect-reconnect" aria-label="重连生效" title="重连生效">↻</small></span>
               <input id="displayNameInput" value="Learner" aria-label="Display name">
             </label>
           </div>
           <div class="control-group nack-control-group">
             <label>
-              <span>NACK <small class="param-effect-badge param-effect-reconnect">重连生效</small></span>
+              <span>NACK <small class="param-effect-badge param-effect-reconnect" aria-label="重连生效" title="重连生效">↻</small></span>
               <select id="nackModeSelect" aria-label="NACK mode">
                 <option value="enabled" selected>NACK on</option>
                 <option value="disabled">NACK off</option>
@@ -36,7 +45,7 @@
           </div>
           <div class="control-group bitrate-control-group">
             <label>
-              <span>Bitrate kbps <small class="param-effect-badge param-effect-immediate">即时生效</small></span>
+              <span>Bitrate kbps <small class="param-effect-badge param-effect-immediate" aria-label="即时生效" title="即时生效">⚡</small></span>
               <input id="senderBitrateInput" type="number" min="0" step="1" inputmode="numeric" placeholder="auto" aria-label="Sender bitrate kbps">
             </label>
             <button id="applyBitrateButton" type="button">Apply</button>
@@ -44,39 +53,34 @@
           </div>
           <div class="control-group abr-control-group">
             <label>
-              <span>ABR <small class="param-effect-badge param-effect-immediate">即时生效</small></span>
+              <span>ABR <small class="param-effect-badge param-effect-immediate" aria-label="即时生效" title="即时生效">⚡</small></span>
               <select id="abrModeSelect" aria-label="ABR mode">
                 <option value="off" selected>ABR off</option>
                 <option value="on">ABR on</option>
               </select>
             </label>
             <label>
-              <span>ABR min <small class="param-effect-badge param-effect-immediate">即时生效</small></span>
+              <span>ABR min <small class="param-effect-badge param-effect-immediate" aria-label="即时生效" title="即时生效">⚡</small></span>
               <input id="abrMinBitrateInput" type="number" min="1" step="1" value="300" aria-label="ABR min bitrate kbps">
             </label>
             <label>
-              <span>ABR max <small class="param-effect-badge param-effect-immediate">即时生效</small></span>
+              <span>ABR max <small class="param-effect-badge param-effect-immediate" aria-label="即时生效" title="即时生效">⚡</small></span>
               <input id="abrMaxBitrateInput" type="number" min="1" step="1" value="1500" aria-label="ABR max bitrate kbps">
             </label>
             <label>
-              <span>ABR step <small class="param-effect-badge param-effect-immediate">即时生效</small></span>
+              <span>ABR step <small class="param-effect-badge param-effect-immediate" aria-label="即时生效" title="即时生效">⚡</small></span>
               <input id="abrStepKbpsInput" type="number" min="1" step="1" value="150" aria-label="ABR step kbps">
             </label>
             <label>
-              <span>Loss % <small class="param-effect-badge param-effect-immediate">即时生效</small></span>
+              <span>Loss % <small class="param-effect-badge param-effect-immediate" aria-label="即时生效" title="即时生效">⚡</small></span>
               <input id="abrLossThresholdInput" type="number" min="0" step="0.1" value="5" aria-label="ABR loss threshold percent">
             </label>
             <label>
-              <span>RTT ms <small class="param-effect-badge param-effect-immediate">即时生效</small></span>
+              <span>RTT ms <small class="param-effect-badge param-effect-immediate" aria-label="即时生效" title="即时生效">⚡</small></span>
               <input id="abrRttThresholdInput" type="number" min="1" step="1" value="300" aria-label="ABR RTT threshold ms">
             </label>
             <span id="abrModeState">abr_off</span>
           </div>
-        </div>
-        <div class="mobile-action-bar" aria-label="Room actions">
-          <button id="startMediaButton" type="button">Start Media</button>
-          <button id="joinRoomButton" type="button">Join</button>
-          <button id="leaveRoomButton" type="button">Leave</button>
         </div>
       </section>
       <section class="test-session-panel" aria-label="Test session">

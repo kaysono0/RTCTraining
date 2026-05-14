@@ -44,3 +44,8 @@
 - Added a visible WebRTC test session elapsed timer that starts with `Start Session` and stops on finish or cancel.
 - Changed the WebRTC page to leave the room on page close and show `room_full` when Join is rejected by a full room.
 - Changed Dashboard Live Trend to render only the most recent 60 seconds of samples.
+- Refined WebRTC and Dashboard visual styling with layered backgrounds, unified controls, status pills, softer panels, and improved mobile summary layout.
+- Changed the WebRTC action buttons to render above the Identity controls on desktop while keeping the mobile fixed action bar.
+- Changed the WebRTC header so the connection state appears beside the title and controls align from the left edge on desktop.
+- Changed repeated WebRTC parameter effect labels to compact icons with a header legend.
+- Changed the Dashboard CSV file chooser button to match the unified control styling.
