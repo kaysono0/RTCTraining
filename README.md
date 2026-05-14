@@ -74,13 +74,31 @@ warnings are expected for local development.
 
 ## Screenshots And Video
 
-开源者需要提供以下信息与材料：
+* WebRTC experiment page screenshot.
 
-- WebRTC experiment page screenshot.
+![rtctraining](/Users/junsen/Desktop/rtctraining.png)
+
+
+
 - Dashboard live metrics screenshot.
+
+  ![dashboard](/Users/junsen/Desktop/dashboard.png)
+
+  
+
 - Dashboard CSV comparison screenshot.
-- Short demo video or GIF showing join, stats, session finish, and CSV compare.
-- Preferred project tagline for the repository description.
+
+  ![csv_curve_compare_info](/Users/junsen/Desktop/csv_curve_compare_info.png)
+
+- Dashboard CSV comparison data.
+
+  <img src="/Users/junsen/Desktop/csv_comparion_info.png" alt="csv_comparion_info" style="zoom:67%;" />
+
+- Dashboard CSV local session data.
+
+  ![local_session_info](/Users/junsen/Desktop/local_session_info.png)
+
+  
 
 ## Local Harness
 
