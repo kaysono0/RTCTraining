@@ -5,6 +5,10 @@ RTCTraining is a Local/LAN WebRTC learning and experiment project.
 It runs a local WebRTC service, a local Dashboard service, collects browser
 `getStats()` samples, and exports CSV data for repeatable RTC experiments.
 
+* WebRTC experiment page screenshot.
+
+![rtctraining](https://raw.githubusercontent.com/kaysono0/MyPicList/main/rtctraining.png)
+
 ## What It Does
 
 - Runs a local browser WebRTC experiment page.
@@ -96,12 +100,6 @@ If the files are not present in a fresh checkout, run two local sessions and
 save the exported CSV files there.
 
 ## Screenshots And Video
-
-* WebRTC experiment page screenshot.
-
-![rtctraining](https://raw.githubusercontent.com/kaysono0/MyPicList/main/rtctraining.png)
-
-
 
 - Dashboard live metrics screenshot.
 
