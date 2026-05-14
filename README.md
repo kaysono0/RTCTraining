@@ -99,27 +99,27 @@ save the exported CSV files there.
 
 * WebRTC experiment page screenshot.
 
-![rtctraining](/Users/junsen/Desktop/rtctraining.png)
+![rtctraining](https://raw.githubusercontent.com/kaysono0/MyPicList/main/rtctraining.png)
 
 
 
 - Dashboard live metrics screenshot.
 
-  ![dashboard](/Users/junsen/Desktop/dashboard.png)
+  ![dashboard](https://raw.githubusercontent.com/kaysono0/MyPicList/main/dashboard.png)
 
   
 
 - Dashboard CSV comparison screenshot.
 
-  ![csv_curve_compare_info](/Users/junsen/Desktop/csv_curve_compare_info.png)
+  ![csv_curve_compare_info](https://raw.githubusercontent.com/kaysono0/MyPicList/main/csv_curve_compare_info.png)
 
 - Dashboard CSV comparison data.
 
-  <img src="/Users/junsen/Desktop/csv_comparion_info.png" alt="csv_comparion_info" style="zoom:67%;" />
+  ![csv_comparion_info](https://raw.githubusercontent.com/kaysono0/MyPicList/main/csv_comparion_info.png)
 
 - Dashboard CSV local session data.
 
-  ![local_session_info](/Users/junsen/Desktop/local_session_info.png)
+  ![local_session_info](https://raw.githubusercontent.com/kaysono0/MyPicList/main/local_session_info.png)
 
   
 
