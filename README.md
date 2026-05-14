@@ -72,6 +72,29 @@ warnings are expected for local development.
 7. Finish the session and download CSV files.
 8. Load multiple CSV files in Dashboard to compare runs.
 
+## Local Sample CSV Files
+
+This workspace may include local sample CSV files under `data/` for trying the
+Dashboard CSV comparison flow:
+
+- `data/20260514-075916Z_alice_peer-e2b45cee-2e03-45fe-b17b-bb377d2b7120_to_peer-3dcd89cc-eb68-4fc8-bbff-d01c2d8298df_bitrate_300_nack-enabled_abr-off_bitrate-300kbps_16s.csv`
+- `data/20260514-080003Z_alice_peer-e2b45cee-2e03-45fe-b17b-bb377d2b7120_to_peer-3dcd89cc-eb68-4fc8-bbff-d01c2d8298df_bitrate_800_nack-enabled_abr-off_bitrate-800kbps_16s.csv`
+
+Use them to compare the same peer direction with NACK enabled, ABR off, and
+manual bitrate set to `300 kbps` versus `800 kbps`.
+
+To inspect them:
+
+1. Open Dashboard at `http://127.0.0.1:8081`.
+2. In `CSV Analysis`, click `Choose Files`.
+3. Select both CSV files from `data/`.
+4. Choose a metric such as `Bitrate`, `RTT`, `Loss`, `Jitter`, or `FPS`.
+5. Click `Analyze CSV`.
+
+The `data/` directory is local generated runtime data and is ignored by Git.
+If the files are not present in a fresh checkout, run two local sessions and
+save the exported CSV files there.
+
 ## Screenshots And Video
 
 * WebRTC experiment page screenshot.
